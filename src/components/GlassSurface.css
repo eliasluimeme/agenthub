@@ -1,0 +1,67 @@
+/* Vendored from React Bits (GlassSurface). The fallback is tuned for the dark theme only. */
+.glass-surface {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: opacity 0.26s ease-out;
+}
+
+.glass-surface__filter {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  z-index: -1;
+}
+
+.glass-surface__content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: inherit;
+  position: relative;
+  z-index: 1;
+}
+
+.glass-surface--svg {
+  background: hsl(0 0% 0% / var(--glass-frost, 0));
+  backdrop-filter: var(--filter-id, url(#glass-filter)) saturate(var(--glass-saturation, 1));
+  box-shadow:
+    0 0 2px 1px color-mix(in oklch, white, transparent 65%) inset,
+    0 0 10px 4px color-mix(in oklch, white, transparent 85%) inset,
+    0px 4px 16px rgba(17, 17, 26, 0.05),
+    0px 8px 24px rgba(17, 17, 26, 0.05),
+    0px 16px 56px rgba(17, 17, 26, 0.05),
+    0px 4px 16px rgba(17, 17, 26, 0.05) inset,
+    0px 8px 24px rgba(17, 17, 26, 0.05) inset,
+    0px 16px 56px rgba(17, 17, 26, 0.05) inset;
+}
+
+.glass-surface--fallback {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(1.6) brightness(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6) brightness(1.15);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.1),
+    0 16px 32px rgba(0, 0, 0, 0.3);
+}
+
+@supports not (backdrop-filter: blur(10px)) {
+  .glass-surface--fallback {
+    background: rgba(5, 6, 15, 0.7);
+  }
+}
+
+.glass-surface:focus-visible {
+  outline: 2px solid #d1e4fa;
+  outline-offset: 2px;
+}

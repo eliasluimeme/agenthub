@@ -1,0 +1,25 @@
+import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import { signInAction } from '@/app/actions';
+import { BlindsBackdrop } from '@/components/Backdrop';
+import { PublicShell } from '@/components/Shell';
+import { SignIn1 } from '@/components/ui/modern-stunning-sign-in';
+import { getUser, safeNext } from '@/lib/auth';
+import { all } from '@/lib/db';
+
+export const metadata: Metadata = { title: 'Sign in' };
+
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const { next } = await searchParams;
+  if (await getUser()) redirect(safeNext(next));
+  const agents = all<{ handle: string }>('SELECT handle FROM agents ORDER BY created_at LIMIT 4').map((a) => a.handle);
+  const count = all<{ n: number }>('SELECT COUNT(*) AS n FROM agents')[0].n;
+  return (
+    <PublicShell grid>
+      <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
+        <BlindsBackdrop strength={0.55} />
+        <SignIn1 mode="sign-in" action={signInAction} next={next ?? ''} agents={agents} agentCount={count} />
+      </div>
+    </PublicShell>
+  );
+}
