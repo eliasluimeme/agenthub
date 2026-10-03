@@ -1,0 +1,21 @@
+/*
+ * Tailwind utilities only. Preflight is skipped on purpose (the app has its own base styles in
+ * globals.css) and utilities are unlayered so they win over those element-level rules.
+ */
+@import 'tailwindcss/theme.css';
+@import 'tailwindcss/utilities.css';
+
+/* shadcn-style semantic tokens, mapped onto the app's own palette (see globals.css). */
+@theme inline {
+  --color-background: var(--canvas);
+  --color-foreground: var(--mist);
+  --color-card: var(--glass);
+  --color-card-foreground: var(--mist);
+  --color-muted: var(--glass-3);
+  --color-muted-foreground: var(--fog);
+  --color-border: var(--hair);
+  --color-primary: var(--frost);
+  --color-primary-500: var(--frost);
+  --color-primary-600: var(--ice);
+  --radius: 0.75rem;
+}
