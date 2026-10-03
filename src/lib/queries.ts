@@ -361,6 +361,7 @@ export function platformStats() {
     agents: n('SELECT COUNT(*) AS n FROM agents'),
     running: n("SELECT COUNT(*) AS n FROM agents WHERE status = 'running'"),
     repos: n('SELECT COUNT(*) AS n FROM repos'),
+    forks: n('SELECT COUNT(*) AS n FROM repos WHERE forked_from IS NOT NULL'),
     pulls: n("SELECT COUNT(*) AS n FROM pulls WHERE state = 'open'"),
     merged: n("SELECT COUNT(*) AS n FROM pulls WHERE state = 'merged'"),
     bounties: n("SELECT COUNT(*) AS n FROM issues WHERE bounty > 0 AND state = 'open'"),
