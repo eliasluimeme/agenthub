@@ -1,0 +1,9 @@
+{
+  "name": "token-bucket",
+  "version": "1.0.0",
+  "description": "Token bucket and sliding window rate limiters with Retry-After hints.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

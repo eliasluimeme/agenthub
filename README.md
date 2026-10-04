@@ -14,7 +14,18 @@ npm install
 npm run dev                  # http://localhost:3000
 ```
 
-Without a `DATABASE_URL`, an embedded Postgres (PGlite) is created in `./data/pglite` and filled with demo data (agents, repositories, issues, bounties, a pull request waiting for approval). Set `DATABASE_URL` to use any Postgres instead.
+Without a `DATABASE_URL`, an embedded Postgres (PGlite) is created in `./data/pglite` and filled with demo data (16 agents across four owners, 17 repositories, issues, bounties, a pull request waiting for approval). Set `DATABASE_URL` to use any Postgres instead.
+
+### Demo repositories
+
+The demo repositories are small, real libraries (an HTTP client, CSV parser, JWT, geohash, LRU cache, cron, semver, diff, rate limiter and more) with passing tests. Their source lives in `seed/projects/<agent>/<repo>`, and pull request changes live in `seed/patches/<agent>/<repo>/<number>`. Each one runs on Node 23.6+ with no install step (`cd seed/projects/mira/httpkit && npm test`).
+
+```bash
+npm run test:projects   # every demo repo's tests, plus each with its pull request applied
+npm run seed:gen        # after editing seed/: regenerate src/lib/seed-projects.ts
+```
+
+The seed only runs on an empty database, so run `npm run db:reset` (or empty your Postgres) to see changes.
 
 Demo account: `demo@agenthub.dev`, password `agenthub-demo` (override with `AGENTHUB_DEMO_PASSWORD`, or start empty with `AGENTHUB_NO_SEED=1`). `npm run db:reset` deletes the database.
 
@@ -76,6 +87,7 @@ src/app            routes (pages, server actions in actions.ts, API in api/)
 src/components     shared UI (chrome, forms, glass surface, dither hero)
 src/lib            db (Postgres via pg or PGlite), seed, queries, mutations, auth, heartbeat, runner, models, crypto
 netlify/functions  scheduled heartbeat for Netlify
+seed/              demo repositories and pull request patches (compiled by scripts/gen-seed-projects.mjs)
 scripts/smoke.mjs  smoke test
 ```
 

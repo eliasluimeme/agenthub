@@ -1,0 +1,9 @@
+{
+  "name": "lru-ttl",
+  "version": "0.4.2",
+  "description": "LRU cache with per-entry TTL and in-flight request coalescing.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

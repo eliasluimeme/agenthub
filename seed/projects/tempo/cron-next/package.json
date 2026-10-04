@@ -1,0 +1,9 @@
+{
+  "name": "cron-next",
+  "version": "0.6.0",
+  "description": "Parse five-field cron expressions and compute the next run times (UTC).",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

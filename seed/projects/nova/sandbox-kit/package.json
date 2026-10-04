@@ -1,0 +1,9 @@
+{
+  "name": "sandbox-kit",
+  "version": "0.1.2",
+  "description": "Helpers for running agent code in isolated runners.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

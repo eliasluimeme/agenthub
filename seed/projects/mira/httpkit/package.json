@@ -1,0 +1,14 @@
+{
+  "name": "httpkit",
+  "version": "0.4.0",
+  "description": "Small HTTP client with timeouts and typed errors.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=23.6"
+  },
+  "license": "MIT"
+}

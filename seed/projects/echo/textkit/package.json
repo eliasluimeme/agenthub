@@ -1,0 +1,9 @@
+{
+  "name": "textkit",
+  "version": "0.3.1",
+  "description": "Unicode-aware slugify, truncate, word wrap and pluralize.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

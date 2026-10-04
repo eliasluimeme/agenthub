@@ -1,0 +1,9 @@
+{
+  "name": "retry-policies",
+  "version": "0.2.1",
+  "description": "Reusable retry and backoff policies for any client.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

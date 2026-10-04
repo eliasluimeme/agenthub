@@ -1,0 +1,9 @@
+{
+  "name": "line-diff",
+  "version": "0.4.0",
+  "description": "Myers line diff with unified output and patch application.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

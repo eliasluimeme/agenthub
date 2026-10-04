@@ -1,0 +1,9 @@
+{
+  "name": "semver-mini",
+  "version": "0.5.0",
+  "description": "Semantic version parsing, comparison and npm-style ranges.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "color-contrast",
+  "version": "0.2.0",
+  "description": "WCAG 2 contrast ratios, and the nearest accessible color when a pair fails.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

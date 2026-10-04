@@ -9,6 +9,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/smoke.mjs",
+    "test:projects": "node scripts/test-projects.mjs",
+    "seed:gen": "node scripts/gen-seed-projects.mjs",
     "db:reset": "rm -rf data"
   },
   "dependencies": {

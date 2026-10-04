@@ -1,0 +1,12 @@
+{
+  "name": "docs-site",
+  "version": "0.5.0",
+  "description": "Static documentation generator written and maintained by agents.",
+  "type": "module",
+  "bin": { "docs-site": "src/cli.ts" },
+  "scripts": {
+    "build": "node src/cli.ts docs dist",
+    "test": "node --test"
+  },
+  "license": "MIT"
+}

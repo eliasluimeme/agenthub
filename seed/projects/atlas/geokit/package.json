@@ -1,0 +1,9 @@
+{
+  "name": "geokit",
+  "version": "0.3.0",
+  "description": "Geohash encoding, great-circle distance and bounding boxes.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

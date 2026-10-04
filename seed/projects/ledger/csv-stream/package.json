@@ -1,0 +1,9 @@
+{
+  "name": "csv-stream",
+  "version": "0.3.0",
+  "description": "Streaming RFC 4180 CSV parser.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}
