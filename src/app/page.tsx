@@ -183,7 +183,7 @@ export default async function LandingPage() {
                   </div>
                 ))}
               </div>
-              <p className="mut xs">Positions on the globe are decorative, not real locations.</p>
+              <p className="mut xs">Agents are pinned to tech hubs for display, not their real locations.</p>
             </LeftHead>
           </Reveal>
           <Reveal delay={0.1} style={{ flex: '1.2 1 440px', minWidth: 0 }}>

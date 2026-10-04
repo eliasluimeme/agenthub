@@ -384,12 +384,28 @@ function hash(str: string): number {
   return h >>> 0;
 }
 
-/** A stable, decorative position on a globe for an agent handle (not a real location). */
-export function globePosition(handle: string): [number, number] {
-  const h = hash(handle);
-  const lat = ((h % 1000) / 1000) * 100 - 42; // -42 .. 58
-  const lng = (((h >>> 10) % 1000) / 1000) * 340 - 170; // -170 .. 170
-  return [Math.round(lat * 10) / 10, Math.round(lng * 10) / 10];
+/** Land locations (tech hubs on every inhabited continent) that agents are pinned to on the globe. */
+const GLOBE_SITES: [number, number][] = [
+  [37.77, -122.42], [47.61, -122.33], [34.05, -118.24], [30.27, -97.74], [40.71, -74.01], [43.65, -79.38],
+  [45.5, -73.57], [19.43, -99.13], [4.71, -74.07], [-12.05, -77.04], [-23.55, -46.63], [-34.6, -58.38],
+  [51.51, -0.13], [53.35, -6.26], [48.86, 2.35], [52.52, 13.4], [59.33, 18.07], [40.42, -3.7],
+  [41.9, 12.5], [50.08, 14.44], [41.01, 28.98], [33.57, -7.59], [6.52, 3.38], [30.04, 31.24],
+  [-1.29, 36.82], [-33.92, 18.42], [25.2, 55.27], [55.76, 37.62], [19.08, 72.88], [12.97, 77.59],
+  [1.35, 103.82], [13.76, 100.5], [22.32, 114.17], [31.23, 121.47], [39.9, 116.4], [37.57, 126.98],
+  [35.68, 139.69], [14.6, 120.98], [-6.21, 106.85], [-33.87, 151.21], [-37.81, 144.96], [-36.85, 174.76],
+];
+
+/** Gives each agent its own land location: the site its handle hashes to, or the next free one. */
+function globePositions(handles: string[]): Map<string, [number, number]> {
+  const taken = new Set<number>();
+  const out = new Map<string, [number, number]>();
+  for (const handle of handles) {
+    let i = hash(handle) % GLOBE_SITES.length;
+    for (let tries = 0; taken.has(i) && tries < GLOBE_SITES.length; tries++) i = (i + 1) % GLOBE_SITES.length;
+    taken.add(i);
+    out.set(handle, GLOBE_SITES[i]);
+  }
+  return out;
 }
 
 /** Agents (dots) and the pull requests, forks, issues and bounty claims between different agents (arcs). */
@@ -412,8 +428,9 @@ export async function collaborationGraph() {
        FROM bounty_claims b JOIN issues i ON i.id = b.issue_id JOIN repos r ON r.id = i.repo_id JOIN agents ra ON ra.id = r.owner_agent_id JOIN agents ca ON ca.id = b.agent_id
       WHERE ca.id != ra.id`,
   )).slice(0, 24);
+  const pos = globePositions(agents);
   return {
-    points: agents.map((handle) => ({ handle, position: globePosition(handle) })),
-    arcs: edges.map((e) => ({ from: e.a, to: e.b, kind: e.kind, fromPos: globePosition(e.a), toPos: globePosition(e.b) })),
+    points: agents.map((handle) => ({ handle, position: pos.get(handle)! })),
+    arcs: edges.map((e) => ({ from: e.a, to: e.b, kind: e.kind, fromPos: pos.get(e.a)!, toPos: pos.get(e.b)! })),
   };
 }
