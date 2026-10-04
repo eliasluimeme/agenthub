@@ -19,7 +19,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${grotesk.variable} ${jetbrains.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${inter.variable} ${grotesk.variable} ${jetbrains.variable}`}>
       <body>
         <noscript><style>{'[data-reveal]{opacity:1!important;transform:none!important}'}</style></noscript>
         {children}

@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { Bell, Bot, ChevronDown, Compass, Plus, Search, Trophy } from 'lucide-react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { signOutAction } from '@/app/actions';
 import { Blobatar } from '@blobatar/react';
 import GlassSurface from './GlassSurface';
+import { LogoMark } from './LogoMark';
 import { Icon } from './Icons';
 
 export interface HeaderUser {
@@ -17,22 +19,18 @@ export interface HeaderUser {
 
 export function Logo({ href = '/' }: { href?: string }) {
   return (
-    <Link href={href} className="logo">
-      <span className="av" style={{ width: 32, height: 32, background: 'rgba(186,214,247,0.08)' }}>
-        <Icon name="git" size={16} />
-      </span>
-      AgentHub
+    <Link href={href} className="logo" aria-label="AgentHub home">
+      <LogoMark size={26} className="logo-mark" />
+      <span className="logo-word">AgentHub</span>
     </Link>
   );
 }
 
 const NAV = [
-  { label: 'Explore', href: '/explore', match: ['/explore'] },
-  { label: 'Issues', href: '/issues', match: ['/issues'] },
-  { label: 'Pull requests', href: '/pulls', match: ['/pulls'] },
-  { label: 'Bounties', href: '/bounties', match: ['/bounties'] },
-  { label: 'Agents', href: '/agents', match: ['/agents'] },
-];
+  { label: 'Explore', href: '/explore', Icon: Compass },
+  { label: 'Agents', href: '/explore?tab=agents', Icon: Bot },
+  { label: 'Bounties', href: '/bounties', Icon: Trophy },
+] as const;
 
 function SignOut({ className }: { className?: string }) {
   return (
@@ -42,59 +40,104 @@ function SignOut({ className }: { className?: string }) {
   );
 }
 
-export function Header({ user }: { user: HeaderUser | null }) {
+/** Which main section the current URL belongs to. Agent profiles count as Agents. */
+function useSection(): string | null {
   const path = usePathname() ?? '';
-  const active = (m: string[]) => m.some((x) => path === x || path.startsWith(`${x}/`)) && !path.startsWith('/agents/new');
+  const tab = useSearchParams()?.get('tab');
+  if (path === '/explore') return tab === 'agents' ? 'Agents' : 'Explore';
+  if (path.startsWith('/agents/') && !path.startsWith('/agents/new')) return 'Agents';
+  if (path.startsWith('/bounties')) return 'Bounties';
+  return null;
+}
+
+function NavLinks({ section }: { section: string | null }) {
+  return (
+    <>
+      {NAV.map(({ label, href, Icon }) => (
+        <Link key={label} href={href} className={section === label ? 'hnav on' : 'hnav'} aria-current={section === label ? 'page' : undefined}>
+          <Icon size={16} aria-hidden="true" className="hnav-icon" />
+          {label}
+        </Link>
+      ))}
+    </>
+  );
+}
+
+function ActiveNav() {
+  return <NavLinks section={useSection()} />;
+}
+
+/** Search that ⌘K, Ctrl+K or / focuses from anywhere. */
+function HeaderSearch() {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      const typing = /INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable;
+      if ((e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
+        e.preventDefault();
+        ref.current?.focus();
+        ref.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return (
+    <form action="/explore" role="search" className="hsearch">
+      <Search size={16} aria-hidden="true" />
+      <input ref={ref} name="q" aria-label="Search agents, repositories and topics" placeholder="Search agents, repositories, topics..." />
+      <kbd aria-hidden="true">⌘K</kbd>
+    </form>
+  );
+}
+
+export function Header({ user }: { user: HeaderUser | null }) {
   return (
     <header className="site-header">
-      <div>
-        <Logo href={user ? '/dashboard' : '/'} />
-        <span className="hide-md" style={{ width: 1, height: 20, background: 'var(--hair-2)', margin: '0 12px', flex: 'none' }} />
-        <nav aria-label="Primary" className="flex" style={{ gap: 2, overflowX: 'auto', minWidth: 0 }}>
-          {NAV.map((n) => (
-            <Link key={n.label} href={n.href} className={active(n.match) ? 'nv on' : 'nv'} aria-current={active(n.match) ? 'page' : undefined}>
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex center g10" style={{ marginLeft: 'auto', flex: 'none' }}>
-          <form action="/explore" role="search" className="hide-md" style={{ position: 'relative', width: 200 }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
-              <Icon name="search" size={15} color="var(--fog)" stroke={2} />
-            </span>
-            <input name="q" aria-label="Search" placeholder="Search" style={{ borderRadius: 999, padding: '8px 14px 8px 34px', fontSize: 14 }} />
-          </form>
+      <div className="hbar">
+        <div className="hleft">
+          <Logo href={user ? '/dashboard' : '/'} />
+          <nav aria-label="Primary" className="hnav-list">
+            <Suspense fallback={<NavLinks section={null} />}>
+              <ActiveNav />
+            </Suspense>
+          </nav>
+        </div>
+        <HeaderSearch />
+        <div className="hright">
+          <Link href="/explore" className="hicon show-sm" aria-label="Search"><Search size={17} /></Link>
           {user ? (
             <>
-              <Link href="/settings" className="pill hide-md" aria-label={`Credit balance: ${user.credits}`} style={{ padding: '7px 12px', fontSize: 13 }}>
+              <Link href="/settings" className="hcredits hide-sm" aria-label={`Credit balance: ${user.credits}`}>
                 <Icon name="coin" size={14} /> {user.credits.toLocaleString('en-US')}
               </Link>
-              <Link href="/notifications" className="av" aria-label={`Notifications${user.unread ? `, ${user.unread} unread` : ''}`} style={{ position: 'relative', width: 36, height: 36, background: 'var(--glass-2)' }}>
-                <Icon name="bell" />
-                {user.unread > 0 && <span style={{ position: 'absolute', top: 8, right: 9, width: 7, height: 7, borderRadius: '50%', background: 'var(--ice)' }} />}
+              <Link href="/notifications" className="hicon" aria-label={`Notifications${user.unread ? `, ${user.unread} unread` : ''}`}>
+                <Bell size={17} />
+                {user.unread > 0 && <span className="hdot" />}
               </Link>
-              <Link href="/agents/new" className="btn" style={{ padding: '8px 16px' }}>
-                <Icon name="plus" size={14} color="#fff" stroke={2.5} /> New agent
+              <Link href="/agents/new" className="hnew" aria-label="New agent">
+                <Plus size={15} strokeWidth={2.5} aria-hidden="true" /> <span className="hide-sm">New agent</span>
               </Link>
               <details className="menu">
-                <summary className="pill" aria-label="Account menu" style={{ padding: '3px 10px 3px 3px', gap: 8 }}>
-                  <span className="av" style={{ width: 28, height: 28, overflow: 'hidden' }}><Blobatar name={user.handle} size={28} /></span>
-                  <Icon name="chevron" size={12} color="var(--fog)" stroke={2.5} />
+                <summary className="havatar" aria-label="Account menu">
+                  <span className="av" style={{ width: 30, height: 30, overflow: 'hidden' }}><Blobatar name={user.handle} size={30} /></span>
+                  <ChevronDown size={14} aria-hidden="true" />
                 </summary>
                 <div className="menu-panel">
-                  <div style={{ padding: '8px 12px 10px' }}><b>{user.name}</b><div className="mut xs">@{user.handle}</div></div>
+                  <div style={{ padding: '8px 12px 10px' }}><b>{user.name}</b><div className="mut xs">@{user.handle} · {user.credits.toLocaleString('en-US')} credits</div></div>
                   <Link href="/dashboard">Dashboard</Link>
                   <Link href="/console">Console</Link>
+                  <Link href="/notifications">Notifications{user.unread > 0 ? ` (${user.unread})` : ''}</Link>
+                  <Link href="/issues">Your issues</Link>
+                  <Link href="/pulls">Your pull requests</Link>
                   <Link href="/settings">Settings and credits</Link>
                   <SignOut />
                 </div>
               </details>
             </>
           ) : (
-            <>
-              <Link href="/sign-in" className="pill">Sign in</Link>
-              <Link href="/sign-up" className="btn">Sign up</Link>
-            </>
+            <Link href="/sign-in" className="hsignup">Sign in</Link>
           )}
         </div>
       </div>

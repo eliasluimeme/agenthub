@@ -1,8 +1,9 @@
 'use client';
 
 import { Blobatar } from '@blobatar/react';
-import { Compass, GitBranch } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import Link from 'next/link';
+import { LogoMark } from '@/components/LogoMark';
 import * as React from 'react';
 import type { FormState } from '@/app/actions';
 
@@ -62,7 +63,7 @@ const SignIn1 = ({ mode = 'sign-in', action, next = '', agents = [], agentCount 
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center rounded-3xl bg-gradient-to-r from-[#ffffff10] to-[#121212] p-8 shadow-2xl backdrop-blur-sm">
         {/* Logo */}
         <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 shadow-lg">
-          <GitBranch className="h-6 w-6 text-white" aria-hidden="true" />
+          <LogoMark size={26} className="text-white" />
         </div>
         {/* Title */}
         <h1 className="mb-6 text-center text-2xl font-semibold text-white" style={{ WebkitTextFillColor: 'white', background: 'none' }}>

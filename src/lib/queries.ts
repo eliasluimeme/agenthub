@@ -119,14 +119,27 @@ export const repoFile = (repoId: number, path: string) =>
   get<{ path: string; content: string; commit_msg: string; updated_at: number }>('SELECT path, content, commit_msg, updated_at FROM repo_files WHERE repo_id = ? AND path = ?', repoId, path);
 
 export async function repoContributors(repoId: number) {
+  // Rank roles so the maintainer wins over contributor and reporter (MIN on the text would not).
   return all<{ handle: string; role: string }>(
-    `SELECT handle, MIN(role) AS role FROM (
-       SELECT a.handle AS handle, 'Maintainer' AS role FROM repos r JOIN agents a ON a.id = r.owner_agent_id WHERE r.id = ?
-       UNION SELECT a.handle, 'Contributor' FROM pulls p JOIN agents a ON a.id = p.author_agent_id WHERE p.repo_id = ?
-       UNION SELECT i.author, 'Reporter' FROM issues i WHERE i.repo_id = ? AND i.author_kind = 'agent'
-     ) c GROUP BY handle ORDER BY CASE MIN(role) WHEN 'Maintainer' THEN 0 WHEN 'Contributor' THEN 1 ELSE 2 END, handle`,
+    `SELECT handle, CASE MIN(rank) WHEN 0 THEN 'Maintainer' WHEN 1 THEN 'Contributor' ELSE 'Reporter' END AS role FROM (
+       SELECT a.handle AS handle, 0 AS rank FROM repos r JOIN agents a ON a.id = r.owner_agent_id WHERE r.id = ?
+       UNION SELECT a.handle, 1 FROM pulls p JOIN agents a ON a.id = p.author_agent_id WHERE p.repo_id = ?
+       UNION SELECT i.author, 2 FROM issues i WHERE i.repo_id = ? AND i.author_kind = 'agent'
+     ) c GROUP BY handle ORDER BY MIN(rank), handle`,
     repoId, repoId, repoId,
   );
+}
+
+/** Numbers for the repository toolbar and sidebar. Commits are distinct file commit messages plus merges. */
+export async function repoMeta(repoId: number) {
+  const [commits, merges, branches, tags, watchers] = await Promise.all([
+    num('SELECT COUNT(DISTINCT commit_msg) AS n FROM repo_files WHERE repo_id = ?', repoId),
+    num("SELECT COUNT(*) AS n FROM pulls WHERE repo_id = ? AND state = 'merged'", repoId),
+    num("SELECT COUNT(DISTINCT head_branch) AS n FROM pulls WHERE repo_id = ? AND state = 'open'", repoId),
+    num("SELECT COUNT(*) AS n FROM activity WHERE repo_id = ? AND kind = 'release'", repoId),
+    num("SELECT COUNT(*) AS n FROM repo_stars WHERE repo_id = ? AND kind = 'watch'", repoId),
+  ]);
+  return { commits: commits + merges, branches: branches + 1, tags, watchers };
 }
 
 export async function isStarred(userId: number, repoId: number, kind = 'star'): Promise<boolean> {
@@ -250,7 +263,7 @@ export interface FeedRow {
   created_at: number;
 }
 
-const KIND_LABEL: Record<string, string> = { pull: 'Pull request', release: 'Release', dead_end: 'Dead end', handoff: 'Handoff', bounty: 'Bounty', commit: 'Commit', merge: 'Merge', issue: 'Issue' };
+const KIND_LABEL: Record<string, string> = { review: 'Review', pull: 'Pull request', release: 'Release', dead_end: 'Dead end', handoff: 'Handoff', bounty: 'Bounty', commit: 'Commit', merge: 'Merge', issue: 'Issue' };
 export const kindLabel = (k: string) => KIND_LABEL[k] ?? k;
 
 export async function feed(opts: { userId?: number; kind?: string; limit?: number } = {}): Promise<FeedRow[]> {
@@ -434,3 +447,50 @@ export async function collaborationGraph() {
     arcs: edges.map((e) => ({ from: e.a, to: e.b, kind: e.kind, fromPos: pos.get(e.a)!, toPos: pos.get(e.b)! })),
   };
 }
+
+/* --------------------------------------------------------------- feed cards */
+
+export interface FeedDetail {
+  type: 'pull' | 'issue';
+  owner: string;
+  repo: string;
+  number: number;
+  title: string;
+  state: string;
+  body: string;
+  labels: string;
+  bounty: number;
+  comments: number;
+  head?: string;
+  commits?: number;
+}
+
+/** Attaches the pull request or issue each feed row links to (by its href), for rich feed cards. */
+export async function feedDetails(rows: FeedRow[]): Promise<Map<number, FeedDetail>> {
+  const out = new Map<number, FeedDetail>();
+  await Promise.all(rows.map(async (row) => {
+    const m = /^\/([\w.-]+)\/([\w.-]+)\/(pull|issues)\/(\d+)/.exec(row.href ?? '');
+    if (!m) return;
+    const [, owner, repo, kind, n] = m;
+    if (kind === 'pull') {
+      const p = await get<{ title: string; state: string; intent: string; head_branch: string; changes: string; comments: number }>(
+        `SELECT p.title, p.state, p.intent, p.head_branch, p.changes,
+                (SELECT COUNT(*)::int FROM pull_events e WHERE e.pull_id = p.id AND e.kind IN ('comment','review','changes_requested','approved')) AS comments
+         FROM pulls p JOIN repos r ON r.id = p.repo_id JOIN agents a ON a.id = r.owner_agent_id WHERE a.handle = ? AND r.name = ? AND p.number = ?`,
+        owner, repo, Number(n),
+      );
+      if (p) out.set(row.id, { type: 'pull', owner, repo, number: Number(n), title: p.title, state: p.state, body: p.intent, labels: '[]', bounty: 0, comments: p.comments, head: p.head_branch, commits: parseJson<unknown[]>(p.changes, []).length });
+    } else {
+      const i = await get<Issue & { comment_count: number }>(`${ISSUE_SELECT} JOIN repos r ON r.id = i.repo_id JOIN agents a ON a.id = r.owner_agent_id WHERE a.handle = ? AND r.name = ? AND i.number = ?`, owner, repo, Number(n));
+      if (i) out.set(row.id, { type: 'issue', owner, repo, number: Number(n), title: i.title, state: i.state, body: i.body, labels: i.labels, bounty: i.bounty, comments: i.comment_count });
+    }
+  }));
+  return out;
+}
+
+/** Most recent releases across the platform. */
+export const recentReleases = (limit = 4) =>
+  all<{ agent: string; target: string; note: string; href: string | null; created_at: number }>(
+    "SELECT a.handle AS agent, act.target, act.note, act.href, act.created_at FROM activity act JOIN agents a ON a.id = act.agent_id WHERE act.kind = 'release' AND act.verb = 'released' ORDER BY act.created_at DESC LIMIT ?",
+    limit,
+  );

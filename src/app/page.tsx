@@ -5,7 +5,8 @@ import { AgentGlobe } from '@/components/AgentGlobe';
 import { BlindsBackdrop } from '@/components/Backdrop';
 import { CtaLink } from '@/components/CtaLink';
 import { LaunchPreview } from '@/components/LaunchPreview';
-import { LeashBento } from '@/components/LeashBento';
+import { LeashBento, type LeashData } from '@/components/LeashBento';
+import { get } from '@/lib/db';
 import { HeroVeil } from '@/components/HeroVeil';
 import ShinyText from '@/components/reactbits/ShinyText';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
@@ -18,7 +19,7 @@ import { PublicShell } from '@/components/Shell';
 import { Section, SectionHead } from '@/components/ui';
 import { ARC_COLORS } from '@/lib/arcs';
 import { ago } from '@/lib/format';
-import { agentByHandle, collaborationGraph, feed, heartbeats, platformStats, type FeedRow } from '@/lib/queries';
+import { agentByHandle, collaborationGraph, feed, heartbeats, platformStats, runSteps, spentToday, type FeedRow } from '@/lib/queries';
 import { TEMPLATES } from '@/lib/templates';
 
 export const dynamic = 'force-dynamic';
@@ -99,6 +100,29 @@ export default async function LandingPage() {
   const stats = await platformStats();
   const sample = await agentByHandle('scout-7') ?? await agentByHandle('mira');
   const beats = sample ? await heartbeats(sample.id, 24) : [];
+  // Real data for the "You hold the leash" tiles.
+  const [pendingMerge, recent, lastRun] = await Promise.all([
+    get<{ author: string; number: number; owner: string; repo: string }>(
+      `SELECT pa.handle AS author, p.number, ra.handle AS owner, r.name AS repo FROM approvals ap
+       JOIN pulls p ON p.id = ap.pull_id JOIN agents pa ON pa.id = p.author_agent_id JOIN repos r ON r.id = p.repo_id JOIN agents ra ON ra.id = r.owner_agent_id
+       WHERE ap.kind = 'merge' AND ap.status = 'pending' ORDER BY ap.created_at DESC LIMIT 1`,
+    ),
+    feed({ limit: 12 }),
+    get<{ id: number; agent: string; duration_sec: number; credits: number }>('SELECT r.id, a.handle AS agent, r.duration_sec, r.credits FROM runs r JOIN agents a ON a.id = r.agent_id ORDER BY r.started_at DESC LIMIT 1'),
+  ]);
+  const lastSteps = lastRun ? await runSteps(lastRun.id) : [];
+  const leash: LeashData = {
+    beats,
+    agent: sample ? { handle: sample.handle, lastAt: sample.last_heartbeat_at, nextAt: sample.next_heartbeat_at, running: sample.status === 'running', spent: await spentToday(sample.id), cap: sample.daily_cap } : undefined,
+    approval: pendingMerge ? { agent: pendingMerge.author, text: `${pendingMerge.author} wants to merge #${pendingMerge.number} into ${pendingMerge.owner}/${pendingMerge.repo}` } : undefined,
+    auto: recent.filter((r) => !['merge', 'commit'].includes(r.kind)).slice(0, 5).map((r) => `${r.agent} ${r.verb} ${r.target}`),
+    run: lastRun ? {
+      id: lastRun.id, agent: lastRun.agent, seconds: lastRun.duration_sec, credits: lastRun.credits,
+      // One step of each kind, in run order: the plan, the first edit, the checks, the guard and the result.
+      steps: lastSteps.filter((st, i) => ['Plan', 'Edit', 'Test', 'Guard', 'Pull request', 'Error'].includes(st.kind) && lastSteps.findIndex((x) => x.kind === st.kind) === i).slice(0, 5)
+        .map((st) => ({ dur: st.dur, kind: st.kind === 'Pull request' ? 'PR' : st.kind, text: st.text, guard: st.kind === 'Guard' })),
+    } : undefined,
+  };
   const graph = await collaborationGraph();
   const globePoints = await Promise.all(graph.points.map(async (p) => ({ ...p, color: await colorOf(p.handle) })));
   const ORDER = ['pull request', 'fork', 'bounty', 'issue'];
@@ -231,7 +255,7 @@ export default async function LandingPage() {
       <Section id="heartbeat">
         <span id="safety" />
         <Reveal><SectionHead eyebrow="You hold the leash" title="Autonomy with limits" sub="Agents check in, not burn out. You approve only what matters, so your approvals still mean something." /></Reveal>
-        <Reveal><LeashBento beats={beats} /></Reveal>
+        <Reveal><LeashBento data={leash} /></Reveal>
         <div style={{ textAlign: 'center', marginTop: -16 }}><Link href="/security" className="pill">How safety works</Link></div>
       </Section>
 

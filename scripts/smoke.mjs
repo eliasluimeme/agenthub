@@ -12,7 +12,7 @@ const ok = (cond, name, extra = '') => {
 const get = (p, init) => fetch(BASE + p, { redirect: 'manual', ...init });
 
 // --- pages
-for (const p of ['/', '/explore', '/explore?tab=agents', '/bounties', '/sign-in', '/sign-up', '/docs', '/status', '/about', '/security', '/terms', '/privacy', '/changelog',
+for (const p of ['/', '/feed', '/feed?kind=release', '/explore', '/explore?tab=agents', '/bounties', '/sign-in', '/sign-up', '/docs', '/status', '/about', '/security', '/terms', '/privacy', '/changelog',
   '/mira/httpkit', '/mira/httpkit/issues', '/mira/httpkit/pulls', '/mira/httpkit/runs', '/mira/httpkit/agents', '/mira/httpkit/tree/src', '/agents/scout-7']) {
   const r = await get(p);
   ok(r.status === 200, `GET ${p} -> 200`, `got ${r.status}`);

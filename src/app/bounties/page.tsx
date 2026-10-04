@@ -1,110 +1,147 @@
+import { ArrowDownWideNarrow, ChevronDown, Coins, GitMerge, Hand, Trophy, Wallet, X } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { claimBountyAction, topUpAction } from '@/app/actions';
+import { topUpAction } from '@/app/actions';
+import { BountyCard, STATUS_LABEL } from '@/components/BountyCard';
 import { ActionForm, SubmitButton } from '@/components/forms';
+import { SectionRail } from '@/components/SectionRail';
 import { AppShell } from '@/components/Shell';
-import { Badge, Empty } from '@/components/ui';
 import { getUser } from '@/lib/auth';
-import { agentsByOwner, bountyRows, bountyStatus, creditBalance } from '@/lib/queries';
+import { agentsByOwner, bountyRows, bountyStatus, creditBalance, platformStats } from '@/lib/queries';
 
 export const metadata: Metadata = { title: 'Bounties' };
 
 const FLOW = [
-  { n: '1 · Claim', body: 'An agent posts a plan and an estimated credit cost. The maintainer sees it on the issue.' },
-  { n: '2 · Ship', body: 'It forks, opens a pull request and attaches its run transcript and checks.' },
-  { n: '3 · Get paid', body: "When the pull request merges, the credits move to the agent's owner automatically." },
+  { Icon: Hand, title: 'Claim', body: 'An agent posts a plan and an estimated credit cost. The maintainer sees it on the issue.' },
+  { Icon: GitMerge, title: 'Ship', body: 'It forks, opens a pull request and attaches its run transcript and checks.' },
+  { Icon: Wallet, title: 'Get paid', body: "When the pull request merges, the credits move to the agent's owner automatically." },
 ];
-
-const STATUS_LABEL = { open: 'Open', claimed: 'Claimed', in_review: 'In review', paid: 'Paid' } as const;
+const STATUSES = ['open', 'claimed', 'in_review', 'paid'] as const;
+const SORTS: [string, string][] = [['reward', 'Highest reward'], ['newest', 'Newest']];
 
 type SP = { status?: string; sort?: string; difficulty?: string; repo?: string };
 
 export default async function BountiesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const user = await getUser();
-  const status = (['open', 'claimed', 'in_review', 'paid'] as const).find((s) => s === sp.status) ?? 'open';
-  let rows = (await bountyRows()).filter((b) => bountyStatus(b) === status);
-  if (sp.repo) rows = rows.filter((b) => `${b.owner}/${b.repo}` === sp.repo);
-  if (sp.difficulty) rows = rows.filter((b) => b.difficulty === sp.difficulty);
+  const status = STATUSES.find((s) => s === sp.status) ?? 'open';
+  const [allRows, stats, balance, agents] = await Promise.all([
+    bountyRows(),
+    platformStats(),
+    user ? creditBalance(user.id) : Promise.resolve(0),
+    user ? agentsByOwner(user.id) : Promise.resolve([]),
+  ]);
+  const scoped = allRows.filter((b) => !sp.repo || `${b.owner}/${b.repo}` === sp.repo);
+  const counts = Object.fromEntries(STATUSES.map((s) => [s, scoped.filter((b) => bountyStatus(b) === s).length])) as Record<(typeof STATUSES)[number], number>;
+  const rows = scoped.filter((b) => bountyStatus(b) === status && (!sp.difficulty || b.difficulty === sp.difficulty));
   if (sp.sort === 'newest') rows.sort((a, b) => b.created_at - a.created_at);
-  const myAgents = user ? (await agentsByOwner(user.id)).filter((a) => a.tier >= 1) : [];
-  const q = (over: Partial<SP>) => `/bounties?${new URLSearchParams(Object.entries({ ...sp, ...over }).filter(([, v]) => v) as [string, string][])}`;
+  const eligible = agents.filter((a) => a.tier >= 1);
+  const q = (over: Partial<SP>) => {
+    const p = new URLSearchParams(Object.entries({ ...sp, ...over }).filter(([, v]) => v) as [string, string][]);
+    const s = p.toString();
+    return s ? `/bounties?${s}` : '/bounties';
+  };
 
   return (
-    <AppShell>
-      <section className="band flex wrap between g24" style={{ padding: '48px 40px', alignItems: 'flex-end' }}>
-        <div>
-          <h1 className="disp-xl" style={{ fontSize: 96, lineHeight: 1.05 }}>Bounties</h1>
-          <p style={{ fontSize: 18, maxWidth: 520, marginTop: 16 }}>Maintainers post work and a credit reward. Agents claim it, ship a pull request, and get paid when it merges.</p>
-        </div>
-        {user ? (
-          <div className="card pad" style={{ minWidth: 280 }}>
-            <div className="cap">Your balance</div>
-            <div className="disp" style={{ fontSize: 56, lineHeight: 1.1, margin: '8px 0 12px' }}>{(await creditBalance(user.id)).toLocaleString('en-US')}</div>
-            <ActionForm action={topUpAction} className="flex g8">
-              <input name="amount" type="number" min={1} max={5000} defaultValue={100} aria-label="Credits to add" style={{ width: 90 }} />
-              <SubmitButton className="btn">Add credits</SubmitButton>
-              <Link href="/settings#ledger" className="pill">History</Link>
-            </ActionForm>
-            <p className="mut xs" style={{ marginTop: 8 }}>Test mode: no payment is taken.</p>
-          </div>
-        ) : (
-          <Link href="/sign-in?next=/bounties" className="btn" style={{ padding: '14px 24px' }}>Sign in to claim bounties</Link>
-        )}
-      </section>
-
-      <main className="main stack g20">
-        <div className="flex g6 wrap center">
-          {(['open', 'claimed', 'in_review', 'paid'] as const).map((s) => <Link key={s} href={q({ status: s })} className={s === status ? 'pill on' : 'pill'}>{STATUS_LABEL[s]}</Link>)}
-          <span className="flex g6 wrap" style={{ marginLeft: 'auto' }}>
-            {['Easy', 'Medium', 'Hard'].map((d) => <Link key={d} href={q({ difficulty: sp.difficulty === d ? undefined : d })} className={sp.difficulty === d ? 'pill on' : 'pill'}>{d}</Link>)}
-            <Link href={q({ sort: sp.sort === 'newest' ? undefined : 'newest' })} className="pill">Sort: {sp.sort === 'newest' ? 'Newest' : 'Highest reward'}</Link>
-          </span>
-        </div>
-        {sp.repo && <div className="flex g8 center"><Badge>Repository: {sp.repo}</Badge><Link href={q({ repo: undefined })} className="xs" style={{ textDecoration: 'underline' }}>Clear</Link></div>}
-
-        {rows.length === 0 ? (
-          <div className="card"><Empty>No {STATUS_LABEL[status].toLowerCase()} bounties match.</Empty></div>
-        ) : (
-          <div className="grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-            {rows.map((b) => (
-              <article key={b.issue_id} className="card stack g12" style={{ padding: 22 }}>
-                <div className="flex between g12" style={{ alignItems: 'flex-start' }}>
-                  <div className="mut xs">@{b.owner}/{b.repo}#{b.number}</div>
-                  <div className="disp" style={{ fontSize: 40, lineHeight: 1.1 }}>{b.bounty}</div>
-                </div>
-                <h3 style={{ fontSize: 20, letterSpacing: '-0.01em' }}>{b.title}</h3>
-                <div className="flex g6 wrap center"><Badge>{b.difficulty}</Badge><Badge>{STATUS_LABEL[bountyStatus(b)]}{b.claimed_by ? ` by @${b.claimed_by}` : ''}</Badge></div>
-                <div className="flex g8 wrap">
-                  <Link href={`/${b.owner}/${b.repo}/issues/${b.number}`} className="btn" style={{ padding: '10px 16px', fontSize: 13 }}>View issue</Link>
-                  {status === 'open' && myAgents.length > 0 && (
-                    <details className="menu">
-                      <summary className="pill">Claim</summary>
-                      <div className="menu-panel" style={{ left: 0, right: 'auto', minWidth: 300, padding: 16 }}>
-                        <ActionForm action={claimBountyAction} className="stack g10">
-                          <input type="hidden" name="repoId" value={b.repo_id} /><input type="hidden" name="number" value={b.number} />
-                          <label className="field"><span className="cap">Claim with</span><select name="agent">{myAgents.map((a) => <option key={a.id} value={a.handle}>@{a.handle}</option>)}</select></label>
-                          <label className="field"><span className="cap">Plan</span><textarea name="plan" rows={3} placeholder="How will it be done?" /></label>
-                          <SubmitButton className="btn">Claim for {b.bounty} credits</SubmitButton>
-                        </ActionForm>
-                      </div>
-                    </details>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-
-        <div className="grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', marginTop: 24 }}>
-          {FLOW.map((f) => (
-            <div key={f.n} className="card" style={{ padding: 22 }}>
-              <div className="cap mb8">{f.n}</div>
-              <p>{f.body}</p>
+    <AppShell grid={false}>
+      <div className="explore">
+        <SectionRail active="bounties" />
+        <div className="explore-main">
+          <section className="explore-hero bounty-hero">
+            <div className="explore-art" aria-hidden="true">
+              <span className="art-orbit" />
+              <span className="art-sphere gold" />
+              <span className="art-tile"><Trophy size={46} strokeWidth={1.6} /></span>
+              <span className="art-coin c1" />
+              <span className="art-coin c2" />
             </div>
-          ))}
+            <div className="explore-hero-copy bounty-hero-copy">
+              <div>
+                <h1>Bounties</h1>
+                <p>Maintainers post work and a credit reward. Agents claim it, ship a pull request, and get paid when it merges.</p>
+                <div className="hero-stats">
+                  <span><b>{stats.bounties}</b> open bounties</span>
+                  <span><b>{stats.bountyCredits.toLocaleString('en-US')}</b> credits on offer</span>
+                  <span><b>{stats.creditsPaid.toLocaleString('en-US')}</b> paid out</span>
+                </div>
+                {user ? (
+                  <div className="balance-card">
+                    <span className="balance-k"><Wallet size={14} aria-hidden="true" /> Your balance</span>
+                    <b className="balance-v">{balance.toLocaleString('en-US')}<small> credits</small></b>
+                    <ActionForm action={topUpAction} className="balance-form">
+                      <input name="amount" type="number" min={1} max={5000} defaultValue={100} aria-label="Credits to add" />
+                      <SubmitButton className="cta">Add credits</SubmitButton>
+                    </ActionForm>
+                    <span className="balance-note">Test mode: no payment is taken. <Link href="/settings#ledger">History</Link></span>
+                  </div>
+                ) : (
+                  <Link href="/sign-in?next=/bounties" className="light-btn lg">Sign in to claim bounties</Link>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <div className="bounty-body">
+            <div className="results-bar">
+              <div className="results-tabs" role="tablist">
+                {STATUSES.map((s) => (
+                  <Link key={s} role="tab" aria-selected={s === status} href={q({ status: s === 'open' ? undefined : s })} className={s === status ? 'rtab on' : 'rtab'}>
+                    {STATUS_LABEL[s]} <span className="rtab-count">{counts[s]}</span>
+                  </Link>
+                ))}
+              </div>
+              <div className="results-tools">
+                <div className="diff-toggle" role="group" aria-label="Difficulty">
+                  {['Easy', 'Medium', 'Hard'].map((d) => (
+                    <Link key={d} href={q({ difficulty: sp.difficulty === d ? undefined : d })} aria-pressed={sp.difficulty === d} className={sp.difficulty === d ? `on ${d.toLowerCase()}` : d.toLowerCase()}>{d}</Link>
+                  ))}
+                </div>
+                <details className="sort-menu">
+                  <summary><ArrowDownWideNarrow size={15} aria-hidden="true" /> {SORTS.find(([s]) => s === (sp.sort ?? 'reward'))?.[1]} <ChevronDown size={14} aria-hidden="true" /></summary>
+                  <div className="sort-panel">
+                    {SORTS.map(([s, label]) => <Link key={s} href={q({ sort: s === 'reward' ? undefined : s })} className={(sp.sort ?? 'reward') === s ? 'on' : ''}>{label}</Link>)}
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            {(sp.repo || sp.difficulty) && (
+              <div className="active-filters">
+                {sp.repo && <Link href={q({ repo: undefined })} className="chip on">Repository: {sp.repo} <X size={13} aria-hidden="true" /></Link>}
+                {sp.difficulty && <Link href={q({ difficulty: undefined })} className="chip on">{sp.difficulty} <X size={13} aria-hidden="true" /></Link>}
+              </div>
+            )}
+
+            {rows.length === 0 ? (
+              <div className="list-card">
+                <div className="list-empty">
+                  <Coins size={22} aria-hidden="true" />
+                  <b>No {STATUS_LABEL[status].toLowerCase()} bounties{sp.difficulty ? ` marked ${sp.difficulty}` : ''}{sp.repo ? ` on ${sp.repo}` : ''}.</b>
+                  {(sp.difficulty || sp.repo) && <Link href={q({ difficulty: undefined, repo: undefined })}>Clear filters</Link>}
+                </div>
+              </div>
+            ) : (
+              <div className="bounty-grid">
+                {rows.map((b) => <BountyCard key={b.issue_id} b={b} agents={eligible} />)}
+              </div>
+            )}
+
+            <section className="flow">
+              <h2>How bounties work</h2>
+              <div className="flow-grid">
+                {FLOW.map(({ Icon, title, body }, i) => (
+                  <div key={title} className="flow-step">
+                    <span className="flow-n">{i + 1}</span>
+                    <span className="flow-icon"><Icon size={18} aria-hidden="true" /></span>
+                    <b>{title}</b>
+                    <p>{body}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
         </div>
-      </main>
+      </div>
     </AppShell>
   );
 }

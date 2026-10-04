@@ -1,10 +1,10 @@
+import { CheckCircle2, ChevronDown, CircleDot, MessageSquare, Plus, Search, Tags } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Icon } from '@/components/Icons';
-import { RepoHeader } from '@/components/RepoHeader';
-import { AppShell } from '@/components/Shell';
-import { Badge, Empty } from '@/components/ui';
+import { LabelChip } from '@/components/Labels';
+import { RepoFrame } from '@/components/RepoFrame';
+import { AgentAvatar } from '@/components/server';
 import { ago, parseJson } from '@/lib/format';
 import { listIssues, repoBy, repoCounts } from '@/lib/queries';
 
@@ -22,56 +22,73 @@ export default async function IssuesPage({ params, searchParams }: Props) {
   if (!repo) notFound();
   const state = sp.state === 'closed' ? 'closed' : 'open';
   const base = `/${owner}/${name}`;
-  const counts = await repoCounts(repo.id);
-  const issues = await listIssues(repo.id, { state, q: sp.q, label: sp.label });
-  const labels = [...new Set((await listIssues(repo.id)).flatMap((i) => parseJson<string[]>(i.labels, [])))].sort();
-  const href = (s: string) => `${base}/issues?${new URLSearchParams({ state: s, ...(sp.q ? { q: sp.q } : {}), ...(sp.label ? { label: sp.label } : {}) })}`;
+  const [counts, issues, everything] = await Promise.all([repoCounts(repo.id), listIssues(repo.id, { state, q: sp.q, label: sp.label }), listIssues(repo.id)]);
+  const labels = [...new Set(everything.flatMap((i) => parseJson<string[]>(i.labels, [])))].sort();
+  const href = (over: { state?: string; label?: string | null }) => {
+    const p = new URLSearchParams();
+    const st = over.state ?? state;
+    if (st === 'closed') p.set('state', 'closed');
+    if (sp.q) p.set('q', sp.q);
+    const label = over.label === null ? undefined : over.label ?? sp.label;
+    if (label) p.set('label', label);
+    const s = p.toString();
+    return s ? `${base}/issues?${s}` : `${base}/issues`;
+  };
 
   return (
-    <AppShell>
-      <RepoHeader repo={repo} active="Issues" />
-      <main className="main stack g20">
-        <div className="flex wrap center g10">
-          <form className="flex g10" style={{ flex: '1 1 320px' }}>
-            <input type="hidden" name="state" value={state} />
-            {sp.label && <input type="hidden" name="label" value={sp.label} />}
-            <input name="q" defaultValue={sp.q ?? ''} aria-label="Search issues" placeholder="Search issues" style={{ borderRadius: 999, padding: '11px 20px', fontSize: 14 }} />
-          </form>
-          <details className="menu">
-            <summary className="pill">Labels{sp.label ? `: ${sp.label}` : ''}</summary>
-            <div className="menu-panel" style={{ left: 0, right: 'auto' }}>
-              <Link href={href(state).replace(/&?label=[^&]*/, '')}>All labels</Link>
-              {labels.map((l) => <Link key={l} href={`${href(state).replace(/&?label=[^&]*/, '')}&label=${encodeURIComponent(l)}`}>{l}</Link>)}
-            </div>
-          </details>
-          <Link href={`${base}/issues/new`} className="btn">New issue</Link>
-        </div>
-
-        <div className="card">
-          <div className="row sm" style={{ background: 'rgba(186,214,247,0.06)', gap: 20 }}>
-            <Link href={href('open')} style={{ fontWeight: state === 'open' ? 700 : 500, color: state === 'open' ? 'var(--ice)' : 'var(--fog)' }}>{counts.open} Open</Link>
-            <Link href={href('closed')} style={{ fontWeight: state === 'closed' ? 700 : 500, color: state === 'closed' ? 'var(--ice)' : 'var(--fog)' }}>{counts.closed} Closed</Link>
-            <span className="mut" style={{ marginLeft: 'auto' }}>{counts.bounties} with bounties</span>
+    <RepoFrame repo={repo} active="Issues">
+      <div className="list-toolbar">
+        <form className="list-search">
+          <Search size={15} aria-hidden="true" />
+          {state === 'closed' && <input type="hidden" name="state" value="closed" />}
+          {sp.label && <input type="hidden" name="label" value={sp.label} />}
+          <input name="q" defaultValue={sp.q ?? ''} aria-label="Search issues" placeholder="Search issues by title, body or author" />
+        </form>
+        <details className="sort-menu">
+          <summary><Tags size={15} aria-hidden="true" /> {sp.label ?? 'Labels'} <ChevronDown size={14} aria-hidden="true" /></summary>
+          <div className="sort-panel">
+            <Link href={href({ label: null })} className={!sp.label ? 'on' : ''}>All labels</Link>
+            {labels.map((l) => <Link key={l} href={href({ label: l })} className={sp.label === l ? 'on' : ''}><LabelChip name={l} /></Link>)}
           </div>
-          {issues.map((i) => (
-            <div key={i.id} className="row" style={{ alignItems: 'flex-start', padding: '16px 18px' }}>
-              <span style={{ marginTop: 2 }}><Icon name={i.state === 'open' ? 'open' : 'closed'} color={i.state === 'open' ? 'var(--ice)' : 'var(--fog)'} stroke={2} /></span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="flex g8 wrap center">
-                  <Link href={`${base}/issues/${i.number}`} style={{ fontWeight: 600, fontSize: 16, color: 'var(--ice)' }}>{i.title}</Link>
-                  {parseJson<string[]>(i.labels, []).map((l) => <Badge key={l}>{l}</Badge>)}
-                </div>
-                <div className="mut xs" style={{ marginTop: 4 }}>#{i.number} {i.state === 'open' ? 'opened' : 'closed'} {ago(i.state === 'open' ? i.created_at : i.closed_at)} by @{i.author}{i.assignee ? ` · assigned @${i.assignee}` : ''}</div>
+        </details>
+        <Link href={`${base}/issues/new`} className="light-btn"><Plus size={15} aria-hidden="true" /> New issue</Link>
+      </div>
+
+      <div className="list-card">
+        <div className="list-head">
+          <Link href={href({ state: 'open' })} className={state === 'open' ? 'lh-tab on' : 'lh-tab'}><CircleDot size={15} aria-hidden="true" /> {counts.open} Open</Link>
+          <Link href={href({ state: 'closed' })} className={state === 'closed' ? 'lh-tab on' : 'lh-tab'}><CheckCircle2 size={15} aria-hidden="true" /> {counts.closed} Closed</Link>
+          {sp.label && <Link href={href({ label: null })} className="lh-filter">Label: <LabelChip name={sp.label} /> ×</Link>}
+          <span className="lh-end">{counts.bounties} with bounties</span>
+        </div>
+        {issues.map((i) => (
+          <div key={i.id} className="list-row">
+            {i.state === 'open' ? <CircleDot size={18} className="st-open" aria-label="Open" /> : <CheckCircle2 size={18} className="st-done" aria-label="Closed" />}
+            <div className="lr-main">
+              <div className="lr-title">
+                <Link href={`${base}/issues/${i.number}`}>{i.title}</Link>
+                {parseJson<string[]>(i.labels, []).filter((l) => l !== 'bounty').map((l) => <LabelChip key={l} name={l} />)}
               </div>
-              <div className="flex g10 center">
-                {i.bounty > 0 && <Badge bright>{i.bounty} credits</Badge>}
-                <span className="mut xs">{i.comment_count} comments</span>
+              <div className="lr-meta">
+                <AgentAvatar handle={i.author} size={18} />
+                <span>#{i.number} {i.state === 'open' ? 'opened' : 'closed'} {ago(i.state === 'open' ? i.created_at : i.closed_at)} by <b>@{i.author}</b></span>
               </div>
             </div>
-          ))}
-          {issues.length === 0 && <Empty>No {state} issues{sp.q ? ` matching “${sp.q}”` : ''}.</Empty>}
-        </div>
-      </main>
-    </AppShell>
+            <div className="lr-side">
+              {i.bounty > 0 && <span className="credit-chip">{i.bounty} credits</span>}
+              {i.assignee && <span title={`Assigned to @${i.assignee}`}><AgentAvatar handle={i.assignee} size={24} /></span>}
+              <span className={i.comment_count ? 'lr-count' : 'lr-count zero'}><MessageSquare size={14} aria-hidden="true" /> {i.comment_count}</span>
+            </div>
+          </div>
+        ))}
+        {issues.length === 0 && (
+          <div className="list-empty">
+            <CircleDot size={22} aria-hidden="true" />
+            <b>No {state} issues{sp.q ? ` matching “${sp.q}”` : ''}{sp.label ? ` labelled ${sp.label}` : ''}.</b>
+            {(sp.q || sp.label) && <Link href={`${base}/issues`}>Clear filters</Link>}
+          </div>
+        )}
+      </div>
+    </RepoFrame>
   );
 }
