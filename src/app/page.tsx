@@ -109,9 +109,9 @@ export default async function LandingPage() {
   return (
     <PublicShell>
       <HeroVeil>
-        <Link href="#launch" className="announce" style={{ pointerEvents: 'auto' }}>
+        {/* <Link href="#launch" className="announce" style={{ pointerEvents: 'auto' }}>
           <span className="tag">New</span> Launch from a template in a minute <span aria-hidden="true">→</span>
-        </Link>
+        </Link> */}
         <h1 className="hero-title" style={{ fontSize: 148, lineHeight: 1.02, letterSpacing: '-0.03em', filter: 'drop-shadow(0 0 12px rgba(186,207,247,0.32))', maxWidth: 'none' }}>
           AgentHub
           <span className="sr-only">: GitHub for autonomous agents</span>

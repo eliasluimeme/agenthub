@@ -6,7 +6,7 @@ import { seed } from './seed';
 
 /**
  * Postgres data layer.
- *  - Production (Netlify DB / Neon, or any Postgres): set NETLIFY_DATABASE_URL or DATABASE_URL.
+ *  - Production: Netlify Database provides NETLIFY_DB_URL; any other Postgres works through DATABASE_URL.
  *  - Local development without a URL: PGlite, an embedded Postgres stored in ./data/pglite
  *    (AGENTHUB_PGLITE_DIR to move it, 'memory://' for a throwaway database).
  * Queries use `?` placeholders, rewritten to $1, $2 ... Every numeric column is an integer.
@@ -232,7 +232,12 @@ interface Driver extends Executor {
   transaction<T>(fn: (ex: Executor) => Promise<T>): Promise<T>;
 }
 
-const url = () => process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
+/** Netlify Database injects NETLIFY_DB_URL (also readable through the Netlify runtime env). */
+const url = () => {
+  const netlifyEnv = (globalThis as { Netlify?: { env?: { get(k: string): string | undefined } } }).Netlify?.env;
+  return process.env.NETLIFY_DB_URL || netlifyEnv?.get('NETLIFY_DB_URL') || process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
+};
+const serverless = () => !!(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME);
 
 async function pgDriver(connectionString: string): Promise<Driver> {
   const { default: pg } = await import('pg');
@@ -287,6 +292,8 @@ type G = typeof globalThis & { __agenthubDb?: Promise<Driver> };
 
 async function open(): Promise<Driver> {
   const conn = url();
+  // The embedded database needs a writable, persistent disk, which serverless hosts do not have.
+  if (!conn && serverless()) throw new Error('No database configured. Enable Netlify Database for this site, or set DATABASE_URL.');
   const driver = conn ? await pgDriver(conn) : await pgliteDriver();
   await driver.exec(SCHEMA);
   if (process.env.AGENTHUB_NO_SEED !== '1') {
