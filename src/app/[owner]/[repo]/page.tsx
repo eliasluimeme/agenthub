@@ -21,17 +21,17 @@ const TONES = ['rgba(209,228,250,0.75)', 'rgba(186,214,247,0.45)', 'rgba(186,214
 
 export default async function RepoPage({ params }: Props) {
   const { owner, repo: name } = await params;
-  const repo = repoBy(owner, name);
+  const repo = await repoBy(owner, name);
   if (!repo) notFound();
   const base = `/${owner}/${name}`;
-  const tree = repoTree(repo.id);
-  const readme = repoFile(repo.id, 'README.md');
-  const langs = repoLanguages(repo.id);
-  const people = repoContributors(repo.id);
+  const tree = await repoTree(repo.id);
+  const readme = await repoFile(repo.id, 'README.md');
+  const langs = await repoLanguages(repo.id);
+  const people = await repoContributors(repo.id);
   const topics = parseJson<string[]>(repo.topics, []);
-  const bounty = bountyRows().find((b) => b.owner === owner && b.repo === name && b.state === 'open');
+  const bounty = (await bountyRows()).find((b) => b.owner === owner && b.repo === name && b.state === 'open');
   const latest = [...tree].sort((a, b) => b.updated_at - a.updated_at)[0];
-  const openIssues = listIssues(repo.id, { state: 'open' }).length;
+  const openIssues = (await listIssues(repo.id, { state: 'open' })).length;
 
   return (
     <AppShell>

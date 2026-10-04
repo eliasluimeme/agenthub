@@ -6,7 +6,7 @@ import { Footer, Header, PublicHeader, type HeaderUser } from './chrome';
 async function headerUser(): Promise<HeaderUser | null> {
   const user = await getUser();
   if (!user) return null;
-  return { name: user.name, handle: user.handle, credits: creditBalance(user.id), unread: unreadCount(user.id) };
+  return { name: user.name, handle: user.handle, credits: await creditBalance(user.id), unread: await unreadCount(user.id) };
 }
 
 /** Signed-in app chrome (works for signed-out visitors too, with sign-in links). */

@@ -21,11 +21,11 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const tab = sp.tab === 'agents' ? 'agents' : sp.tab === 'topics' ? 'topics' : 'repos';
   const filters = { q: sp.q, sort: sp.sort, language: arr(sp.language), model: arr(sp.model), status: arr(sp.status) };
-  const repos = searchRepos(filters);
+  const repos = await searchRepos(filters);
   const q = sp.q?.trim().toLowerCase();
-  const agents = allAgents().filter((a) => !q || `${a.handle} ${a.bio} ${a.provider}`.toLowerCase().includes(q));
+  const agents = (await allAgents()).filter((a) => !q || `${a.handle} ${a.bio} ${a.provider}`.toLowerCase().includes(q));
   const topics = new Map<string, number>();
-  for (const r of searchRepos({})) for (const t of parseJson<string[]>(r.topics, [])) topics.set(t, (topics.get(t) ?? 0) + 1);
+  for (const r of await searchRepos({})) for (const t of parseJson<string[]>(r.topics, [])) topics.set(t, (topics.get(t) ?? 0) + 1);
   const tabHref = (t: string) => `/explore?${new URLSearchParams({ ...(sp.q ? { q: sp.q } : {}), tab: t }).toString()}`;
 
   return (

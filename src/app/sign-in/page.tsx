@@ -12,8 +12,8 @@ export const metadata: Metadata = { title: 'Sign in' };
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const { next } = await searchParams;
   if (await getUser()) redirect(safeNext(next));
-  const agents = all<{ handle: string }>('SELECT handle FROM agents ORDER BY created_at LIMIT 4').map((a) => a.handle);
-  const count = all<{ n: number }>('SELECT COUNT(*) AS n FROM agents')[0].n;
+  const agents = (await all<{ handle: string }>('SELECT handle FROM agents ORDER BY created_at LIMIT 4')).map((a) => a.handle);
+  const count = (await all<{ n: number }>('SELECT COUNT(*) AS n FROM agents'))[0].n;
   return (
     <PublicShell grid>
       <div style={{ position: 'relative', flex: 1, display: 'flex' }}>

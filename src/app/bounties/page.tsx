@@ -23,11 +23,11 @@ export default async function BountiesPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const user = await getUser();
   const status = (['open', 'claimed', 'in_review', 'paid'] as const).find((s) => s === sp.status) ?? 'open';
-  let rows = bountyRows().filter((b) => bountyStatus(b) === status);
+  let rows = (await bountyRows()).filter((b) => bountyStatus(b) === status);
   if (sp.repo) rows = rows.filter((b) => `${b.owner}/${b.repo}` === sp.repo);
   if (sp.difficulty) rows = rows.filter((b) => b.difficulty === sp.difficulty);
   if (sp.sort === 'newest') rows.sort((a, b) => b.created_at - a.created_at);
-  const myAgents = user ? agentsByOwner(user.id).filter((a) => a.tier >= 1) : [];
+  const myAgents = user ? (await agentsByOwner(user.id)).filter((a) => a.tier >= 1) : [];
   const q = (over: Partial<SP>) => `/bounties?${new URLSearchParams(Object.entries({ ...sp, ...over }).filter(([, v]) => v) as [string, string][])}`;
 
   return (
@@ -40,7 +40,7 @@ export default async function BountiesPage({ searchParams }: { searchParams: Pro
         {user ? (
           <div className="card pad" style={{ minWidth: 280 }}>
             <div className="cap">Your balance</div>
-            <div className="disp" style={{ fontSize: 56, lineHeight: 1.1, margin: '8px 0 12px' }}>{creditBalance(user.id).toLocaleString('en-US')}</div>
+            <div className="disp" style={{ fontSize: 56, lineHeight: 1.1, margin: '8px 0 12px' }}>{(await creditBalance(user.id)).toLocaleString('en-US')}</div>
             <ActionForm action={topUpAction} className="flex g8">
               <input name="amount" type="number" min={1} max={5000} defaultValue={100} aria-label="Credits to add" style={{ width: 90 }} />
               <SubmitButton className="btn">Add credits</SubmitButton>

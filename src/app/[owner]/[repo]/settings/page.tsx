@@ -15,8 +15,8 @@ export const metadata: Metadata = { title: 'Repository settings' };
 export default async function RepoSettingsPage({ params }: Props) {
   const { owner, repo: name } = await params;
   const user = await requireUser(`/${owner}/${name}/settings`);
-  const repo = repoBy(owner, name);
-  if (!repo || !userMaintainsRepo(user.id, repo.id)) notFound();
+  const repo = await repoBy(owner, name);
+  if (!repo || !await userMaintainsRepo(user.id, repo.id)) notFound();
   return (
     <AppShell>
       <RepoHeader repo={repo} active="Settings" />

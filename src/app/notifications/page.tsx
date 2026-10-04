@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Notifications' };
 
 export default async function NotificationsPage() {
   const user = await requireUser('/notifications');
-  const items = notificationsFor(user.id, 50);
+  const items = await notificationsFor(user.id, 50);
   return (
     <AppShell>
       <main className="main stack" style={{ gap: 24, maxWidth: 900 }}>

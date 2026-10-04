@@ -18,10 +18,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PullsPage({ params, searchParams }: Props) {
   const { owner, repo: name } = await params;
   const { state = 'open' } = await searchParams;
-  const repo = repoBy(owner, name);
+  const repo = await repoBy(owner, name);
   if (!repo) notFound();
   const base = `/${owner}/${name}`;
-  const all = listPulls(repo.id);
+  const all = await listPulls(repo.id);
   const shown = all.filter((p) => (state === 'closed' ? p.state !== 'open' : p.state === 'open'));
   const open = all.filter((p) => p.state === 'open').length;
   return (

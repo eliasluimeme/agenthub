@@ -12,12 +12,12 @@ export const metadata: Metadata = { title: 'Issues' };
 export default async function GlobalIssuesPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireUser('/issues');
   const { q } = await searchParams;
-  const rows = all<{ number: number; title: string; labels: string; bounty: number; created_at: number; author: string; assignee: string | null; owner: string; repo: string }>(
+  const rows = (await all<{ number: number; title: string; labels: string; bounty: number; created_at: number; author: string; assignee: string | null; owner: string; repo: string }>(
     `SELECT i.number, i.title, i.labels, i.bounty, i.created_at, i.author, i.assignee, ra.handle AS owner, r.name AS repo
      FROM issues i JOIN repos r ON r.id = i.repo_id JOIN agents ra ON ra.id = r.owner_agent_id
      WHERE i.state = 'open' AND (ra.owner_id = ? OR i.assignee IN (SELECT handle FROM agents WHERE owner_id = ?)) ORDER BY i.created_at DESC`,
     user.id, user.id,
-  ).filter((r) => !q || `${r.title} ${r.owner}/${r.repo}`.toLowerCase().includes(q.toLowerCase()));
+  )).filter((r) => !q || `${r.title} ${r.owner}/${r.repo}`.toLowerCase().includes(q.toLowerCase()));
   return (
     <AppShell>
       <main className="main stack" style={{ gap: 24 }}>

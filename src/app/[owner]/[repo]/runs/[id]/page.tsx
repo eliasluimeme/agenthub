@@ -15,11 +15,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function RunPage({ params }: Props) {
   const { owner, repo: name, id } = await params;
-  const repo = repoBy(owner, name);
-  const run = getRun(Number(id));
+  const repo = await repoBy(owner, name);
+  const run = await getRun(Number(id));
   if (!repo || !run || run.repo_id !== repo.id) notFound();
-  const steps = runSteps(run.id);
-  const pull = run.pull_id ? getPullById(run.pull_id) : undefined;
+  const steps = await runSteps(run.id);
+  const pull = run.pull_id ? await getPullById(run.pull_id) : undefined;
   const base = `/${owner}/${name}`;
   const dur = `${Math.floor(run.duration_sec / 60)} min ${run.duration_sec % 60} s`;
 

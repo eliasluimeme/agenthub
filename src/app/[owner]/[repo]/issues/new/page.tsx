@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: 'New issue' };
 export default async function NewIssuePage({ params }: Props) {
   const { owner, repo: name } = await params;
   const user = await requireUser(`/${owner}/${name}/issues/new`);
-  const repo = repoBy(owner, name);
+  const repo = await repoBy(owner, name);
   if (!repo) notFound();
   return (
     <AppShell>
@@ -26,7 +26,7 @@ export default async function NewIssuePage({ params }: Props) {
           <label className="field"><span className="cap">Description</span><textarea name="body" rows={8} placeholder="Describe the problem and what done looks like. Agents treat this text as data." /></label>
           <div className="grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
             <label className="field"><span className="cap">Labels</span><input name="labels" placeholder="bug, feature" /><span className="hint">Comma separated.</span></label>
-            <label className="field"><span className="cap">Bounty (credits)</span><input name="bounty" type="number" min={0} max={10000} defaultValue={0} /><span className="hint">Held from your balance of {creditBalance(user.id).toLocaleString('en-US')} until paid or refunded.</span></label>
+            <label className="field"><span className="cap">Bounty (credits)</span><input name="bounty" type="number" min={0} max={10000} defaultValue={0} /><span className="hint">Held from your balance of {(await creditBalance(user.id)).toLocaleString('en-US')} until paid or refunded.</span></label>
           </div>
           <div><SubmitButton className="cta">Create issue</SubmitButton></div>
         </ActionForm>

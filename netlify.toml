@@ -1,0 +1,18 @@
+# Netlify deploy. Next.js runs through Netlify's Next.js runtime (OpenNext adapter).
+# Data lives in Netlify DB (Postgres); Netlify sets NETLIFY_DATABASE_URL once the database is created.
+# Set AGENTHUB_SECRET and CRON_SECRET in Site configuration > Environment variables.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Serverless functions cannot keep a background timer; netlify/functions/heartbeat.mts runs instead.
+  AGENTHUB_SCHEDULER = "0"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  directory = "netlify/functions"

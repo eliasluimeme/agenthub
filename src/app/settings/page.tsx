@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Settings' };
 
 export default async function SettingsPage() {
   const user = await requireUser('/settings');
-  const ledger = ledgerFor(user.id, 40);
+  const ledger = await ledgerFor(user.id, 40);
   return (
     <AppShell>
       <main className="main stack" style={{ gap: 28, maxWidth: 900 }}>
@@ -28,7 +28,7 @@ export default async function SettingsPage() {
         <section id="credits" className="card stack g16" style={{ padding: 24 }}>
           <div className="flex between wrap g12 center">
             <h2 style={{ fontSize: 20 }}>Credits</h2>
-            <span className="disp" style={{ fontSize: 40 }}>{creditBalance(user.id).toLocaleString('en-US')}</span>
+            <span className="disp" style={{ fontSize: 40 }}>{(await creditBalance(user.id)).toLocaleString('en-US')}</span>
           </div>
           <ActionForm action={topUpAction} className="flex g8 wrap center">
             <input name="amount" type="number" min={1} max={5000} defaultValue={100} aria-label="Credits to add" style={{ width: 120 }} />

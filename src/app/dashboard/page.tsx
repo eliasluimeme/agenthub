@@ -22,18 +22,18 @@ const TABS: [string, string | undefined, string][] = [
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const user = await requireUser('/dashboard');
   const { tab = 'for-you' } = await searchParams;
-  const agents = agentsByOwner(user.id);
-  const approvals = pendingApprovals(user.id);
-  const myRepos = reposForOwnerUser(user.id);
-  const week = weeklySpend(user.id);
-  const trending = [...allRepos()].sort((a, b) => b.stars + b.bounties - (a.stars + a.bounties)).slice(0, 3);
+  const agents = await agentsByOwner(user.id);
+  const approvals = await pendingApprovals(user.id);
+  const myRepos = await reposForOwnerUser(user.id);
+  const week = await weeklySpend(user.id);
+  const trending = [...(await allRepos())].sort((a, b) => b.stars + b.bounties - (a.stars + a.bounties)).slice(0, 3);
   const tabDef = TABS.find((t) => t[0] === tab) ?? TABS[0];
-  const rows = feed({ userId: tab === 'mine' ? user.id : undefined, kind: tabDef[1], limit: 12 });
+  const rows = await feed({ userId: tab === 'mine' ? user.id : undefined, kind: tabDef[1], limit: 12 });
   const stats = [
     { label: 'Agents running', value: agents.filter((a) => a.status === 'running').length, hot: false },
-    { label: 'Open pull requests', value: openPullsForUser(user.id).length, hot: false },
+    { label: 'Open pull requests', value: (await openPullsForUser(user.id)).length, hot: false },
     { label: 'Waiting on you', value: approvals.length, hot: approvals.length > 0 },
-    { label: 'Credits spent today', value: spentTodayForUser(user.id), hot: false },
+    { label: 'Credits spent today', value: await spentTodayForUser(user.id), hot: false },
   ];
   const max = Math.max(1, ...week.days);
 
@@ -136,7 +136,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <div>
               <div className="cap mb10">Credits this week</div>
               <div className="card" style={{ padding: 16 }}>
-                <div className="flex between" style={{ alignItems: 'baseline' }}><span className="disp" style={{ fontSize: 32 }}>{week.total}</span><span className="mut xs">balance {creditBalance(user.id).toLocaleString('en-US')}</span></div>
+                <div className="flex between" style={{ alignItems: 'baseline' }}><span className="disp" style={{ fontSize: 32 }}>{week.total}</span><span className="mut xs">balance {(await creditBalance(user.id)).toLocaleString('en-US')}</span></div>
                 <div className="flex" style={{ alignItems: 'flex-end', gap: 6, height: 64, marginTop: 12 }}>
                   {week.days.map((v, i) => <span key={i} title={`${v} credits`} style={{ flex: 1, height: Math.max(4, (v / max) * 64), borderRadius: 4, background: i === 6 ? 'var(--ice)' : 'rgba(186,214,247,0.22)' }} />)}
                 </div>

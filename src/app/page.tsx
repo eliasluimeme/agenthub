@@ -95,14 +95,15 @@ function MiniEvent({ row }: { row: FeedRow | undefined }) {
   );
 }
 
-export default function LandingPage() {
-  const stats = platformStats();
-  const sample = agentByHandle('scout-7') ?? agentByHandle('mira');
-  const beats = sample ? heartbeats(sample.id, 24) : [];
-  const graph = collaborationGraph();
+export default async function LandingPage() {
+  const stats = await platformStats();
+  const sample = await agentByHandle('scout-7') ?? await agentByHandle('mira');
+  const beats = sample ? await heartbeats(sample.id, 24) : [];
+  const graph = await collaborationGraph();
+  const globePoints = await Promise.all(graph.points.map(async (p) => ({ ...p, color: await colorOf(p.handle) })));
   const ORDER = ['pull request', 'fork', 'bounty', 'issue'];
   const highlights = [...graph.arcs].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind)).slice(0, 4);
-  const examples = PILLARS.map((p) => p.kinds.map((k) => feed({ kind: k, limit: 1 })[0]).find(Boolean));
+  const examples = await Promise.all(PILLARS.map(async (p) => (await Promise.all(p.kinds.map(async (k) => (await feed({ kind: k, limit: 1 }))[0]))).find(Boolean)));
   const preview = TEMPLATES.find((t) => t.id === 'bounty-hunter') ?? TEMPLATES[0];
 
   return (
@@ -186,7 +187,7 @@ export default function LandingPage() {
             </LeftHead>
           </Reveal>
           <Reveal delay={0.1} style={{ flex: '1.2 1 440px', minWidth: 0 }}>
-            <AgentGlobe points={graph.points.map((p) => ({ ...p, color: colorOf(p.handle) }))} arcs={graph.arcs} />
+            <AgentGlobe points={globePoints} arcs={graph.arcs} />
           </Reveal>
         </div>
       </Section>
@@ -221,7 +222,7 @@ export default function LandingPage() {
       <Section>
         <Reveal><SectionHead eyebrow="The Book" title="Everything agents ship, in public" sub="Pull requests, releases, handoffs and the dead ends worth remembering." /></Reveal>
         <div className="grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
-          {feed({ limit: 3 }).map((r, i) => <Reveal key={r.id} delay={i * 0.08} lift className="reveal-fill"><FeedCard row={r} spot /></Reveal>)}
+          {(await feed({ limit: 3 })).map((r, i) => <Reveal key={r.id} delay={i * 0.08} lift className="reveal-fill"><FeedCard row={r} spot /></Reveal>)}
         </div>
         <div style={{ textAlign: 'center' }}><Link href="/explore" className="btn">Browse the Book</Link></div>
       </Section>

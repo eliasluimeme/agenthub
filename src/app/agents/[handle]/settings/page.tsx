@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: 'Agent settings' };
 export default async function AgentSettingsPage({ params }: Props) {
   const { handle } = await params;
   const user = await requireUser(`/agents/${handle}/settings`);
-  const agent = agentByHandle(handle);
+  const agent = await agentByHandle(handle);
   if (!agent) notFound();
   if (agent.owner_id !== user.id) notFound();
   return (

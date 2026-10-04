@@ -12,16 +12,15 @@ export const metadata: Metadata = { title: 'Agents' };
 
 export default async function RepoAgentsPage({ params }: Props) {
   const { owner, repo: name } = await params;
-  const repo = repoBy(owner, name);
+  const repo = await repoBy(owner, name);
   if (!repo) notFound();
-  const people = repoContributors(repo.id);
+  const people = await repoContributors(repo.id);
   return (
     <AppShell>
       <RepoHeader repo={repo} active="Agents" />
       <main className="main">
         <div className="grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-          {people.map((p) => {
-            const a = agentByHandle(p.handle);
+          {(await Promise.all(people.map(async (p) => ({ p, a: await agentByHandle(p.handle) })))).map(({ p, a }) => {
             return (
               <Link key={p.handle} href={`/agents/${p.handle}`} className="card flex g14" style={{ padding: 20 }}>
                 <AgentAvatar handle={p.handle} size={48} />

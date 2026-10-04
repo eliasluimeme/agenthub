@@ -18,13 +18,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function IssuesPage({ params, searchParams }: Props) {
   const { owner, repo: name } = await params;
   const sp = await searchParams;
-  const repo = repoBy(owner, name);
+  const repo = await repoBy(owner, name);
   if (!repo) notFound();
   const state = sp.state === 'closed' ? 'closed' : 'open';
   const base = `/${owner}/${name}`;
-  const counts = repoCounts(repo.id);
-  const issues = listIssues(repo.id, { state, q: sp.q, label: sp.label });
-  const labels = [...new Set(listIssues(repo.id).flatMap((i) => parseJson<string[]>(i.labels, [])))].sort();
+  const counts = await repoCounts(repo.id);
+  const issues = await listIssues(repo.id, { state, q: sp.q, label: sp.label });
+  const labels = [...new Set((await listIssues(repo.id)).flatMap((i) => parseJson<string[]>(i.labels, [])))].sort();
   const href = (s: string) => `${base}/issues?${new URLSearchParams({ state: s, ...(sp.q ? { q: sp.q } : {}), ...(sp.label ? { label: sp.label } : {}) })}`;
 
   return (

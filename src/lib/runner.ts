@@ -27,18 +27,18 @@ export interface TaskResult {
   note: string;
 }
 
-function recordRun(agent: Agent, repo: Repo, steps: Step[], status: string, credits: number, tokensIn: number, tokensOut: number, mode: string, startedAt: number, pullId?: number | null) {
-  const r = run(
+async function recordRun(agent: Agent, repo: Repo, steps: Step[], status: string, credits: number, tokensIn: number, tokensOut: number, mode: string, startedAt: number, pullId?: number | null) {
+  const r = await run(
     'INSERT INTO runs (agent_id, repo_id, pull_id, status, credits, duration_sec, model, tokens_in, tokens_out, mode, started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
     agent.id, repo.id, pullId ?? null, status, credits, Math.round((Date.now() - startedAt) / 1000), agent.model || agent.provider, tokensIn, tokensOut, mode, startedAt,
   );
-  steps.forEach((s, i) => run('INSERT INTO run_steps (run_id, idx, kind, text, dur, extra) VALUES (?,?,?,?,?,?)', r.lastInsertRowid, i, s.kind, s.text, s.dur, s.extra ?? null));
+  for (const [i, s] of steps.entries()) await run('INSERT INTO run_steps (run_id, idx, kind, text, dur, extra) VALUES (?,?,?,?,?,?)', r.lastInsertRowid, i, s.kind, s.text, s.dur, s.extra ?? null);
   return r.lastInsertRowid;
 }
 
-function simulateChanges(repo: Repo, issue: Issue): { title: string; intent: string; changes: { path: string; after: string }[] } {
+async function simulateChanges(repo: Repo, issue: Issue): Promise<{ title: string; intent: string; changes: { path: string; after: string }[] }> {
   const slug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
-  const notes = get<{ content: string }>('SELECT content FROM repo_files WHERE repo_id = ? AND path = ?', repo.id, '.agent/NOTES.md')?.content ?? '# Agent notes\n';
+  const notes = (await get<{ content: string }>('SELECT content FROM repo_files WHERE repo_id = ? AND path = ?', repo.id, '.agent/NOTES.md'))?.content ?? '# Agent notes\n';
   const stamp = new Date().toISOString().slice(0, 10);
   const changes = [
     { path: '.agent/NOTES.md', after: `${notes.trimEnd()}\n\n## ${stamp} · #${issue.number} ${issue.title}\n\nScaffolded by a simulated run. Acceptance: ${issue.body.split('\n')[0].slice(0, 160) || issue.title}\n` },
@@ -48,7 +48,7 @@ function simulateChanges(repo: Repo, issue: Issue): { title: string; intent: str
     },
   ];
   if (issue.labels.includes('docs')) {
-    const readme = get<{ content: string }>('SELECT content FROM repo_files WHERE repo_id = ? AND path = ?', repo.id, 'README.md')?.content ?? `# ${repo.name}\n`;
+    const readme = (await get<{ content: string }>('SELECT content FROM repo_files WHERE repo_id = ? AND path = ?', repo.id, 'README.md'))?.content ?? `# ${repo.name}\n`;
     changes.push({ path: 'README.md', after: `${readme.trimEnd()}\n\n## ${issue.title}\n\n_Draft written for #${issue.number}. A maintainer should review the wording._\n` });
   }
   return {
@@ -59,7 +59,7 @@ function simulateChanges(repo: Repo, issue: Issue): { title: string; intent: str
 }
 
 async function liveChanges(agent: Agent, apiKeyEnc: string, repo: Repo, issue: Issue, comments: string[]) {
-  const files = all<{ path: string; content: string }>('SELECT path, content FROM repo_files WHERE repo_id = ? ORDER BY LENGTH(content) LIMIT 14', repo.id);
+  const files = await all<{ path: string; content: string }>('SELECT path, content FROM repo_files WHERE repo_id = ? ORDER BY LENGTH(content) LIMIT 14', repo.id);
   const system = [
     agent.instructions,
     'You are an autonomous software agent working on a repository.',
@@ -88,24 +88,24 @@ async function liveChanges(agent: Agent, apiKeyEnc: string, repo: Repo, issue: I
 
 /** Work an issue: plan, change files, open a pull request. Honors daily caps and spend approvals. */
 export async function runTask(agent: Agent, repoId: number, issue: Issue): Promise<TaskResult> {
-  const repo = repoById(repoId)!;
+  const repo = (await repoById(repoId))!;
   const started = Date.now();
   const steps: Step[] = [];
   const t = () => fmt(Date.now() - started);
-  const keyRow = get<{ api_key_enc: string | null }>('SELECT api_key_enc FROM agents WHERE id = ?', agent.id);
+  const keyRow = await get<{ api_key_enc: string | null }>('SELECT api_key_enc FROM agents WHERE id = ?', agent.id);
   const live = liveModelAvailable(agent, keyRow?.api_key_enc ?? null);
   const estimate = live ? 12 : 6;
 
-  if (spentToday(agent.id) + estimate > agent.daily_cap) {
+  if (await spentToday(agent.id) + estimate > agent.daily_cap) {
     return { runId: 0, status: 'waiting', note: `Daily credit cap of ${agent.daily_cap} reached.` };
   }
   if (agent.ask_spend > 0 && estimate > agent.ask_spend) {
-    run("INSERT INTO approvals (owner_id, agent_id, kind, amount, text, href, status, created_at) VALUES (?,?, 'spend', ?, ?, ?, 'pending', ?)", agent.owner_id, agent.id, estimate, `@${agent.handle} asks to spend ${estimate} credits on #${issue.number}`, `/agents/${agent.handle}`, Date.now());
-    notify(agent.owner_id, `@${agent.handle} asks to spend ${estimate} credits and is waiting for you.`, '/dashboard');
+    await run("INSERT INTO approvals (owner_id, agent_id, kind, amount, text, href, status, created_at) VALUES (?,?, 'spend', ?, ?, ?, 'pending', ?)", agent.owner_id, agent.id, estimate, `@${agent.handle} asks to spend ${estimate} credits on #${issue.number}`, `/agents/${agent.handle}`, Date.now());
+    await notify(agent.owner_id, `@${agent.handle} asks to spend ${estimate} credits and is waiting for you.`, '/dashboard');
     return { runId: 0, status: 'waiting', note: 'Waiting for spend approval.' };
   }
 
-  const commentTexts = commentsFor('issue', issue.id).map((c) => `${c.author}: ${c.body}`);
+  const commentTexts = (await commentsFor('issue', issue.id)).map((c) => `${c.author}: ${c.body}`);
   steps.push({ kind: 'Plan', text: `Read issue #${issue.number} "${issue.title}" and the repository files.`, dur: t() });
   steps.push({ kind: 'Read', text: `Opened ${repo.name} files and ${commentTexts.length} comment${commentTexts.length === 1 ? '' : 's'}.`, dur: t() });
 
@@ -120,7 +120,7 @@ export async function runTask(agent: Agent, repoId: number, issue: Issue): Promi
   let mode = 'simulated';
   let tokensIn = 9000 + issue.body.length * 6;
   let tokensOut = 1800;
-  let proposal = simulateChanges(repo, issue);
+  let proposal = await simulateChanges(repo, issue);
   if (live) {
     try {
       const out = await liveChanges(agent, keyRow!.api_key_enc!, repo, issue, commentTexts);
@@ -140,7 +140,7 @@ export async function runTask(agent: Agent, repoId: number, issue: Issue): Promi
   let status: TaskResult['status'] = 'completed';
   let note = '';
   try {
-    result = createPull(repo.id, agent, { title: proposal.title, intent: proposal.intent, changes: proposal.changes, issueNumber: issue.number, head: `${agent.handle}:issue-${issue.number}` });
+    result = await createPull(repo.id, agent, { title: proposal.title, intent: proposal.intent, changes: proposal.changes, issueNumber: issue.number, head: `${agent.handle}:issue-${issue.number}` });
     steps.push({ kind: 'Test', text: 'Ran static checks: secret scan, JSON syntax, diff size and tests included.', dur: t(), extra: 'terminal' });
     steps.push({ kind: 'Commit', text: `Committed to ${agent.handle}:issue-${issue.number}.`, dur: t() });
     steps.push({ kind: 'Pull request', text: `Opened pull request #${result.number} on @${repo.owner}/${repo.name} and linked issue #${issue.number}.`, dur: t() });
@@ -151,13 +151,13 @@ export async function runTask(agent: Agent, repoId: number, issue: Issue): Promi
     steps.push({ kind: 'Error', text: note, dur: t() });
   }
 
-  const runId = recordRun(agent, repo, steps, status, credits, tokensIn, tokensOut, mode, started, result?.id ?? null);
-  if (result) run('UPDATE pulls SET run_id = ? WHERE id = ?', runId, result.id);
-  run('INSERT INTO ledger (user_id, agent_id, delta, reason, created_at) VALUES (?,?,?,?,?)', agent.owner_id, agent.id, -credits, `Agent run for @${agent.handle} (#${issue.number})`, Date.now());
-  run("UPDATE bounty_claims SET status = 'in_review' WHERE issue_id = ? AND agent_id = ? AND status = 'claimed'", issue.id, agent.id);
+  const runId = await recordRun(agent, repo, steps, status, credits, tokensIn, tokensOut, mode, started, result?.id ?? null);
+  if (result) await run('UPDATE pulls SET run_id = ? WHERE id = ?', runId, result.id);
+  await run('INSERT INTO ledger (user_id, agent_id, delta, reason, created_at) VALUES (?,?,?,?,?)', agent.owner_id, agent.id, -credits, `Agent run for @${agent.handle} (#${issue.number})`, Date.now());
+  await run("UPDATE bounty_claims SET status = 'in_review' WHERE issue_id = ? AND agent_id = ? AND status = 'claimed'", issue.id, agent.id);
   if (result) {
-    addComment('issue', issue.id, { handle: agent.handle, kind: 'agent' }, `Opened pull request #${result.number} for this issue.`);
-    logActivity(agent.id, 'commit', repo.id, 'pushed to', `${agent.handle}:issue-${issue.number}`, `Work on #${issue.number}.`, `/${repo.owner}/${repo.name}/pull/${result.number}`);
+    await addComment('issue', issue.id, { handle: agent.handle, kind: 'agent' }, `Opened pull request #${result.number} for this issue.`);
+    await logActivity(agent.id, 'commit', repo.id, 'pushed to', `${agent.handle}:issue-${issue.number}`, `Work on #${issue.number}.`, `/${repo.owner}/${repo.name}/pull/${result.number}`);
   }
   return { runId, pullNumber: result?.number, status, note };
 }

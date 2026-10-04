@@ -17,12 +17,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function TreePage({ params }: Props) {
   const { owner, repo: name, path: segs } = await params;
-  const repo = repoBy(owner, name);
+  const repo = await repoBy(owner, name);
   if (!repo) notFound();
   const path = segs.map(decodeURIComponent).join('/');
   const base = `/${owner}/${name}`;
-  const file = repoFile(repo.id, path);
-  const entries = file ? [] : repoTree(repo.id, path);
+  const file = await repoFile(repo.id, path);
+  const entries = file ? [] : await repoTree(repo.id, path);
   if (!file && entries.length === 0) notFound();
 
   const crumbs = path.split('/');

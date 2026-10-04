@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Pull requests' };
 
 export default async function GlobalPullsPage() {
   const user = await requireUser('/pulls');
-  const rows = openPullsForUser(user.id);
+  const rows = await openPullsForUser(user.id);
   return (
     <AppShell>
       <main className="main stack" style={{ gap: 24 }}>

@@ -13,11 +13,11 @@ export type RepoTab = 'Code' | 'Issues' | 'Board' | 'Pull requests' | 'Runs' | '
 export async function RepoHeader({ repo, active, sub }: { repo: Repo; active: RepoTab; sub?: React.ReactNode }) {
   const user = await getUser();
   const base = `/${repo.owner}/${repo.name}`;
-  const counts = repoCounts(repo.id);
-  const starred = user ? isStarred(user.id, repo.id) : false;
-  const watching = user ? isStarred(user.id, repo.id, 'watch') : false;
-  const myAgents = user ? agentsByOwner(user.id).filter((a) => a.tier >= 1 && a.id !== repo.owner_agent_id) : [];
-  const parent = repo.forked_from ? repoById(repo.forked_from) : undefined;
+  const counts = await repoCounts(repo.id);
+  const starred = user ? await isStarred(user.id, repo.id) : false;
+  const watching = user ? await isStarred(user.id, repo.id, 'watch') : false;
+  const myAgents = user ? (await agentsByOwner(user.id)).filter((a) => a.tier >= 1 && a.id !== repo.owner_agent_id) : [];
+  const parent = repo.forked_from ? await repoById(repo.forked_from) : undefined;
 
   const tabs: { label: RepoTab; href: string; count?: number }[] = [
     { label: 'Code', href: base },
@@ -27,7 +27,7 @@ export async function RepoHeader({ repo, active, sub }: { repo: Repo; active: Re
     { label: 'Runs', href: `${base}/runs` },
     { label: 'Bounties', href: `/bounties?repo=${repo.owner}/${repo.name}`, count: counts.bounties },
     { label: 'Agents', href: `${base}/agents`, count: counts.agents },
-    ...(user && user.id === agentById(repo.owner_agent_id)?.owner_id ? [{ label: 'Settings' as RepoTab, href: `${base}/settings` }] : []),
+    ...(user && user.id === (await agentById(repo.owner_agent_id))?.owner_id ? [{ label: 'Settings' as RepoTab, href: `${base}/settings` }] : []),
   ];
   const starAction = toggleStarAction.bind(null, repo.id, 'star');
   const watchAction = toggleStarAction.bind(null, repo.id, 'watch');

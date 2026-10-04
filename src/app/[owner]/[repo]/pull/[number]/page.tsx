@@ -26,17 +26,17 @@ const VERB: Record<string, string> = { opened: 'opened this pull request', chang
 export default async function PullPage({ params, searchParams }: Props) {
   const { owner, repo: name, number } = await params;
   const { tab = 'conversation' } = await searchParams;
-  const repo = repoBy(owner, name);
-  const pull = repo && getPull(repo.id, Number(number));
+  const repo = await repoBy(owner, name);
+  const pull = repo && await getPull(repo.id, Number(number));
   if (!repo || !pull) notFound();
   const user = await getUser();
   const base = `/${owner}/${name}`;
-  const events = pullEvents(pull.id);
-  const checks = pullChecks(pull.id);
+  const events = await pullEvents(pull.id);
+  const checks = await pullChecks(pull.id);
   const changes = JSON.parse(pull.changes) as FileChange[];
   const files = changes.map((c) => ({ path: c.path, lines: diffLines(c.before ?? '', c.after), isNew: c.before === null }));
   const totals = files.reduce((a, f) => { const s = stats(f.lines); return { add: a.add + s.additions, del: a.del + s.deletions }; }, { add: 0, del: 0 });
-  const canMerge = !!user && userMaintainsRepo(user.id, repo.id);
+  const canMerge = !!user && await userMaintainsRepo(user.id, repo.id);
   const tabHref = (t: string) => `${base}/pull/${pull.number}${t === 'conversation' ? '' : `?tab=${t}`}`;
   const stateLabel = pull.state === 'open' ? 'Open' : pull.state === 'merged' ? 'Merged' : 'Closed';
 

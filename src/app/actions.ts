@@ -32,7 +32,7 @@ async function guarded(fn: () => Promise<FormState | void> | FormState | void): 
 }
 
 async function ownedAgent(user: User, handle: string): Promise<Agent> {
-  const agent = agentByHandle(handle);
+  const agent = await agentByHandle(handle);
   if (!agent || agent.owner_id !== user.id) throw new m.ActionError('You can only manage your own agents.');
   return agent;
 }
@@ -41,7 +41,7 @@ async function ownedAgent(user: User, handle: string): Promise<Agent> {
 
 export async function signInAction(_prev: FormState, f: FormData): Promise<FormState> {
   return guarded(async () => {
-    const user = m.signIn(str(f, 'email'), str(f, 'password'));
+    const user = await m.signIn(str(f, 'email'), str(f, 'password'));
     await createSession(user.id);
     redirect(safeNext(str(f, 'next')));
   });
@@ -49,7 +49,7 @@ export async function signInAction(_prev: FormState, f: FormData): Promise<FormS
 
 export async function signUpAction(_prev: FormState, f: FormData): Promise<FormState> {
   return guarded(async () => {
-    const user = m.signUp({ email: str(f, 'email'), name: str(f, 'name'), password: str(f, 'password') });
+    const user = await m.signUp({ email: str(f, 'email'), name: str(f, 'name'), password: str(f, 'password') });
     await createSession(user.id);
     redirect('/agents/new');
   });
@@ -82,7 +82,7 @@ function agentInput(f: FormData): m.AgentInput {
 export async function createAgentAction(_prev: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser('/agents/new');
   return guarded(async () => {
-    const { agent, token } = m.createAgent(user.id, agentInput(f));
+    const { agent, token } = await m.createAgent(user.id, agentInput(f));
     revalidatePath('/dashboard');
     (await cookies()).set('ah_flash', token, { httpOnly: true, sameSite: 'lax', path: '/agents', maxAge: 120 });
     redirect(`/agents/${agent.handle}?welcome=1`);
@@ -93,7 +93,7 @@ export async function updateAgentAction(_prev: FormState, f: FormData): Promise<
   const user = await requireUser();
   return guarded(async () => {
     const agent = await ownedAgent(user, str(f, 'handle'));
-    m.updateAgent(agent, agentInput(f));
+    await m.updateAgent(agent, agentInput(f));
     revalidatePath(`/agents/${agent.handle}`);
     return { message: 'Saved.' };
   });
@@ -102,7 +102,7 @@ export async function updateAgentAction(_prev: FormState, f: FormData): Promise<
 export async function setAgentStatusAction(handle: string, status: 'running' | 'paused') {
   const user = await requireUser();
   const agent = await ownedAgent(user, handle);
-  m.setAgentStatus(agent, status);
+  await m.setAgentStatus(agent, status);
   revalidatePath('/', 'layout');
 }
 
@@ -120,7 +120,7 @@ export async function rotateTokenAction(_prev: FormState, f: FormData): Promise<
   const user = await requireUser();
   return guarded(async () => {
     const agent = await ownedAgent(user, str(f, 'handle'));
-    return { token: m.rotateAgentToken(agent), message: 'New token created. Copy it now, it is shown once.' };
+    return { token: await m.rotateAgentToken(agent), message: 'New token created. Copy it now, it is shown once.' };
   });
 }
 
@@ -128,7 +128,7 @@ export async function deleteAgentAction(handle: string): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
     const agent = await ownedAgent(user, handle);
-    m.deleteAgent(agent);
+    await m.deleteAgent(agent);
     revalidatePath('/', 'layout');
     redirect('/dashboard');
   });
@@ -140,7 +140,7 @@ export async function createRepoAction(_prev: FormState, f: FormData): Promise<F
   const user = await requireUser();
   return guarded(async () => {
     const agent = await ownedAgent(user, str(f, 'agent'));
-    const repo = m.createRepo(agent, str(f, 'name').trim(), str(f, 'description'), str(f, 'topics').split(',').map((t) => t.trim()).filter(Boolean));
+    const repo = await m.createRepo(agent, str(f, 'name').trim(), str(f, 'description'), str(f, 'topics').split(',').map((t) => t.trim()).filter(Boolean));
     revalidatePath('/', 'layout');
     redirect(`/${repo.owner}/${repo.name}`);
   });
@@ -149,9 +149,9 @@ export async function createRepoAction(_prev: FormState, f: FormData): Promise<F
 export async function updateRepoAction(_prev: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    const repo = repoById(int(f, 'repoId'));
-    if (!repo || !m.userMaintainsRepo(user.id, repo.id)) throw new m.ActionError('Only the repository owner can edit it.');
-    m.updateRepo(repo.id, str(f, 'description'), str(f, 'topics').split(',').map((t) => t.trim()).filter(Boolean));
+    const repo = await repoById(int(f, 'repoId'));
+    if (!repo || !await m.userMaintainsRepo(user.id, repo.id)) throw new m.ActionError('Only the repository owner can edit it.');
+    await m.updateRepo(repo.id, str(f, 'description'), str(f, 'topics').split(',').map((t) => t.trim()).filter(Boolean));
     revalidatePath(`/${repo.owner}/${repo.name}`, 'layout');
     return { message: 'Saved.' };
   });
@@ -161,7 +161,7 @@ export async function forkRepoAction(_prev: FormState, f: FormData): Promise<For
   const user = await requireUser();
   return guarded(async () => {
     const agent = await ownedAgent(user, str(f, 'agent'));
-    const repo = m.forkRepo(int(f, 'repoId'), agent);
+    const repo = await m.forkRepo(int(f, 'repoId'), agent);
     revalidatePath('/', 'layout');
     redirect(`/${repo.owner}/${repo.name}`);
   });
@@ -169,8 +169,8 @@ export async function forkRepoAction(_prev: FormState, f: FormData): Promise<For
 
 export async function toggleStarAction(repoId: number, kind: 'star' | 'watch') {
   const user = await requireUser();
-  m.toggleStar(user.id, repoId, kind);
-  const repo = repoById(repoId);
+  await m.toggleStar(user.id, repoId, kind);
+  const repo = await repoById(repoId);
   if (repo) revalidatePath(`/${repo.owner}/${repo.name}`, 'layout');
 }
 
@@ -179,9 +179,9 @@ export async function toggleStarAction(repoId: number, kind: 'star' | 'watch') {
 export async function createIssueAction(_prev: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    const repo = repoById(int(f, 'repoId'));
+    const repo = await repoById(int(f, 'repoId'));
     if (!repo) throw new m.ActionError('Repository not found.');
-    const number = m.createIssue(
+    const number = await m.createIssue(
       repo.id,
       { handle: user.handle, kind: 'user' },
       { title: str(f, 'title'), body: str(f, 'body'), labels: str(f, 'labels').split(',').map((l) => l.trim()).filter(Boolean), bounty: int(f, 'bounty') },
@@ -196,21 +196,21 @@ export async function commentAction(_prev: FormState, f: FormData): Promise<Form
   const user = await requireUser();
   return guarded(async () => {
     const kind = str(f, 'kind') === 'pull' ? 'pull' : 'issue';
-    const repo = repoById(int(f, 'repoId'));
+    const repo = await repoById(int(f, 'repoId'));
     if (!repo) throw new m.ActionError('Repository not found.');
     const number = int(f, 'number');
     if (kind === 'issue') {
-      const issue = getIssue(repo.id, number);
+      const issue = await getIssue(repo.id, number);
       if (!issue) throw new m.ActionError('Issue not found.');
       const wantsState = f.get('close') === '1' || f.get('reopen') === '1';
-      if (wantsState && !m.canManageIssue(user, issue)) throw new m.ActionError('Only the issue author, the repository owner or the assignee can change its state.');
-      m.addComment('issue', issue.id, { handle: user.handle, kind: 'user' }, str(f, 'body'));
-      if (f.get('close') === '1') m.setIssueState(issue, 'closed');
-      if (f.get('reopen') === '1') m.setIssueState(issue, 'open');
+      if (wantsState && !await m.canManageIssue(user, issue)) throw new m.ActionError('Only the issue author, the repository owner or the assignee can change its state.');
+      await m.addComment('issue', issue.id, { handle: user.handle, kind: 'user' }, str(f, 'body'));
+      if (f.get('close') === '1') await m.setIssueState(issue, 'closed');
+      if (f.get('reopen') === '1') await m.setIssueState(issue, 'open');
     } else {
-      const pull = getPull(repo.id, number);
+      const pull = await getPull(repo.id, number);
       if (!pull) throw new m.ActionError('Pull request not found.');
-      m.addPullEvent(pull, { handle: user.handle, kind: 'user' }, 'comment', str(f, 'body'));
+      await m.addPullEvent(pull, { handle: user.handle, kind: 'user' }, 'comment', str(f, 'body'));
     }
     revalidatePath(`/${repo.owner}/${repo.name}`, 'layout');
     return { message: 'Posted.' };
@@ -220,11 +220,11 @@ export async function commentAction(_prev: FormState, f: FormData): Promise<Form
 export async function setIssueStateAction(repoId: number, number: number, state: 'open' | 'closed'): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    const repo = repoById(repoId);
-    const issue = repo && getIssue(repo.id, number);
+    const repo = await repoById(repoId);
+    const issue = repo && await getIssue(repo.id, number);
     if (!repo || !issue) throw new m.ActionError('Issue not found.');
-    if (!m.canManageIssue(user, issue)) throw new m.ActionError('Only the issue author, the repository owner or the assignee can change its state.');
-    m.setIssueState(issue, state);
+    if (!await m.canManageIssue(user, issue)) throw new m.ActionError('Only the issue author, the repository owner or the assignee can change its state.');
+    await m.setIssueState(issue, state);
     revalidatePath(`/${repo.owner}/${repo.name}`, 'layout');
   });
 }
@@ -233,10 +233,10 @@ export async function claimBountyAction(_prev: FormState, f: FormData): Promise<
   const user = await requireUser();
   return guarded(async () => {
     const agent = await ownedAgent(user, str(f, 'agent'));
-    const repo = repoById(int(f, 'repoId'));
-    const issue = repo && getIssue(repo.id, int(f, 'number'));
+    const repo = await repoById(int(f, 'repoId'));
+    const issue = repo && await getIssue(repo.id, int(f, 'number'));
     if (!repo || !issue) throw new m.ActionError('Issue not found.');
-    m.claimBounty(issue, agent, str(f, 'plan'));
+    await m.claimBounty(issue, agent, str(f, 'plan'));
     revalidatePath('/', 'layout');
     return { message: `@${agent.handle} claimed this bounty. It will start on its next check-in.` };
   });
@@ -247,11 +247,11 @@ export async function claimBountyAction(_prev: FormState, f: FormData): Promise<
 export async function mergePullAction(repoId: number, number: number): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    const repo = repoById(repoId);
-    const pull = repo && getPull(repo.id, number);
+    const repo = await repoById(repoId);
+    const pull = repo && await getPull(repo.id, number);
     if (!repo || !pull) throw new m.ActionError('Pull request not found.');
-    if (!m.userMaintainsRepo(user.id, repo.id)) throw new m.ActionError(`Only the owner of @${repo.owner} can merge into this repository.`);
-    m.mergePull(pull.id, `@${user.handle}`);
+    if (!await m.userMaintainsRepo(user.id, repo.id)) throw new m.ActionError(`Only the owner of @${repo.owner} can merge into this repository.`);
+    await m.mergePull(pull.id, `@${user.handle}`);
     revalidatePath('/', 'layout');
     return { message: 'Merged.' };
   });
@@ -260,11 +260,11 @@ export async function mergePullAction(repoId: number, number: number): Promise<F
 export async function closePullAction(repoId: number, number: number): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    const repo = repoById(repoId);
-    const pull = repo && getPull(repo.id, number);
+    const repo = await repoById(repoId);
+    const pull = repo && await getPull(repo.id, number);
     if (!repo || !pull) throw new m.ActionError('Pull request not found.');
-    if (!m.userMaintainsRepo(user.id, repo.id) && pull.author_owner_id !== user.id) throw new m.ActionError('You cannot close this pull request.');
-    m.closePull(pull, user.handle);
+    if (!await m.userMaintainsRepo(user.id, repo.id) && pull.author_owner_id !== user.id) throw new m.ActionError('You cannot close this pull request.');
+    await m.closePull(pull, user.handle);
     revalidatePath('/', 'layout');
     return { message: 'Closed.' };
   });
@@ -273,11 +273,11 @@ export async function closePullAction(repoId: number, number: number): Promise<F
 export async function requestChangesAction(_prev: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    const repo = repoById(int(f, 'repoId'));
-    const pull = repo && getPull(repo.id, int(f, 'number'));
+    const repo = await repoById(int(f, 'repoId'));
+    const pull = repo && await getPull(repo.id, int(f, 'number'));
     if (!repo || !pull) throw new m.ActionError('Pull request not found.');
-    if (!m.userMaintainsRepo(user.id, repo.id)) throw new m.ActionError('Only the repository owner can request changes.');
-    m.addPullEvent(pull, { handle: user.handle, kind: 'user' }, 'changes_requested', str(f, 'body') || 'Changes requested.');
+    if (!await m.userMaintainsRepo(user.id, repo.id)) throw new m.ActionError('Only the repository owner can request changes.');
+    await m.addPullEvent(pull, { handle: user.handle, kind: 'user' }, 'changes_requested', str(f, 'body') || 'Changes requested.');
     revalidatePath('/', 'layout');
     return { message: 'Requested changes.' };
   });
@@ -288,7 +288,7 @@ export async function requestChangesAction(_prev: FormState, f: FormData): Promi
 export async function resolveApprovalAction(id: number, approve: boolean): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    m.resolveApproval(id, user, approve);
+    await m.resolveApproval(id, user, approve);
     revalidatePath('/', 'layout');
     return { message: approve ? 'Approved.' : 'Declined.' };
   });
@@ -299,7 +299,7 @@ export async function resolveApprovalAction(id: number, approve: boolean): Promi
 export async function tipAction(_prev: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    m.tipAgent(user, str(f, 'handle'), int(f, 'amount'));
+    await m.tipAgent(user, str(f, 'handle'), int(f, 'amount'));
     revalidatePath('/', 'layout');
     return { message: 'Tip sent. Thank you.' };
   });
@@ -308,7 +308,7 @@ export async function tipAction(_prev: FormState, f: FormData): Promise<FormStat
 export async function topUpAction(_prev: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser();
   return guarded(async () => {
-    m.addTestCredits(user.id, int(f, 'amount'));
+    await m.addTestCredits(user.id, int(f, 'amount'));
     revalidatePath('/', 'layout');
     return { message: 'Credits added.' };
   });
@@ -318,14 +318,14 @@ export async function topUpAction(_prev: FormState, f: FormData): Promise<FormSt
 
 export async function markReadAction() {
   const user = await requireUser();
-  m.markNotificationsRead(user.id);
+  await m.markNotificationsRead(user.id);
   revalidatePath('/', 'layout');
 }
 
 export async function updateProfileAction(_prev: FormState, f: FormData): Promise<FormState> {
   const user = await requireUser();
-  return guarded(() => {
-    m.updateProfile(user.id, str(f, 'name'));
+  return guarded(async () => {
+    await m.updateProfile(user.id, str(f, 'name'));
     revalidatePath('/', 'layout');
     return { message: 'Saved.' };
   });

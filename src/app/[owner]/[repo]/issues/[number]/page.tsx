@@ -21,16 +21,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function IssuePage({ params }: Props) {
   const { owner, repo: name, number } = await params;
-  const repo = repoBy(owner, name);
-  const issue = repo && getIssue(repo.id, Number(number));
+  const repo = await repoBy(owner, name);
+  const issue = repo && await getIssue(repo.id, Number(number));
   if (!repo || !issue) notFound();
   const user = await getUser();
   const base = `/${owner}/${name}`;
-  const comments = commentsFor('issue', issue.id);
-  const claims = claimsFor(issue.id);
-  const pulls = listPulls(repo.id).filter((p) => p.issue_number === issue.number);
-  const myAgents = user ? agentsByOwner(user.id).filter((a) => a.tier >= 1) : [];
-  const canManage = !!user && canManageIssue(user, issue);
+  const comments = await commentsFor('issue', issue.id);
+  const claims = await claimsFor(issue.id);
+  const pulls = (await listPulls(repo.id)).filter((p) => p.issue_number === issue.number);
+  const myAgents = user ? (await agentsByOwner(user.id)).filter((a) => a.tier >= 1) : [];
+  const canManage = !!user && await canManageIssue(user, issue);
 
   const Author = ({ handle, kind }: { handle: string; kind: string }) =>
     kind === 'agent' ? <AgentAvatar handle={handle} size={38} /> : <Avatar handle={handle} color="#c7d3ea" size={38} />;

@@ -1,13 +1,9 @@
 // Smoke test for a running AgentHub server.
 //   npm run build && PORT=3100 npm start &     then     BASE_URL=http://localhost:3100 npm test
-// It checks public routes, auth redirects, 404s and the agent API. It creates a temporary agent
-// directly in the SQLite file (AGENTHUB_DB or ./data/agenthub.db) and removes it afterwards.
-import { createHash, randomBytes } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
-import path from 'node:path';
+// It checks public routes, auth redirects, 404s and the agent API. The API flow creates a temporary
+// agent through the test hooks, so start the server with AGENTHUB_TEST_HOOKS=1 (never in production).
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
-const DB = process.env.AGENTHUB_DB ?? path.join(process.cwd(), 'data', 'agenthub.db');
 let failures = 0;
 const ok = (cond, name, extra = '') => {
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${cond ? '' : `  ${extra}`}`);
@@ -36,16 +32,12 @@ ok((await get('/api/v1/me')).status === 401, 'API without token -> 401');
 ok((await get('/api/v1/me', { headers: { authorization: 'Bearer nope' } })).status === 401, 'API with bad token -> 401');
 ok((await get('/api/cron/heartbeat', { method: 'POST' })).status === 401, 'cron without secret -> 401');
 
-const db = new DatabaseSync(DB);
-const owner = db.prepare('SELECT id FROM users ORDER BY id LIMIT 1').get();
-if (!owner) {
-  console.log('SKIP  API flow (database has no users)');
+const hook = await get('/api/test/agent', { method: 'POST' });
+const temp = hook.status === 200 ? await hook.json() : null;
+if (!temp?.token) {
+  console.log(`SKIP  API flow (${hook.status === 404 ? 'start the server with AGENTHUB_TEST_HOOKS=1' : 'database has no users'})`);
 } else {
-  const token = 'ah_smoke_' + randomBytes(12).toString('hex');
-  const handle = 'smoke-' + randomBytes(3).toString('hex');
-  const now = Date.now();
-  db.prepare(`INSERT INTO agents (handle, owner_id, bio, provider, model, instructions, tier, token_hash, created_at, next_heartbeat_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?)`).run(handle, owner.id, 'smoke', 'Anthropic', 'x', 'smoke test agent', 1, createHash('sha256').update(token).digest('hex'), now, now + 3_600_000);
+  const { token, handle } = temp;
   const H = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
   const api = (p, method = 'GET', body) => get('/api/v1' + p, { method, headers: H, body: body ? JSON.stringify(body) : undefined });
   try {
@@ -68,7 +60,7 @@ if (!owner) {
     const leaky = r.status === 201 ? (await r.json()).number : null;
     ok(leaky !== null, 'API open pull request with a secret');
     if (leaky) {
-      const check = db.prepare("SELECT c.state FROM checks c JOIN pulls p ON p.id = c.pull_id JOIN repos r ON r.id = p.repo_id WHERE p.number = ? AND c.name = 'Secret scan' ORDER BY c.id DESC LIMIT 1").get(leaky);
+      const check = await (await get(`/api/test/check?owner=mira&repo=httpkit&number=${leaky}&name=Secret%20scan`)).json();
       ok(check?.state === 'Failed', 'secret scan fails on leaked key', JSON.stringify(check));
     }
     r = await api('/repos/mira/httpkit/issues/9999/comments', 'POST', { body: 'x' });
@@ -76,9 +68,7 @@ if (!owner) {
     r = await api('/heartbeat', 'POST');
     ok(r.status === 429 && !!r.headers.get('retry-after'), 'API heartbeat rate limited with Retry-After');
   } finally {
-    db.prepare("DELETE FROM pulls WHERE author_agent_id = (SELECT id FROM agents WHERE handle = ?)").run(handle);
-    db.prepare('DELETE FROM agents WHERE handle = ?').run(handle);
-    db.prepare('DELETE FROM approvals WHERE pull_id IS NOT NULL AND pull_id NOT IN (SELECT id FROM pulls)').run();
+    await get(`/api/test/agent?handle=${handle}`, { method: 'DELETE' });
   }
 }
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed');

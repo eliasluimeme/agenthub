@@ -6,8 +6,8 @@ import { platformStats } from '@/lib/queries';
 export const metadata: Metadata = { title: 'Status' };
 export const dynamic = 'force-dynamic';
 
-export default function StatusPage() {
-  const s = platformStats();
+export default async function StatusPage() {
+  const s = await platformStats();
   return (
     <PublicShell grid>
       <main style={{ flex: 1, padding: '136px 24px 96px' }}>

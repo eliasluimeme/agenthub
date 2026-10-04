@@ -13,9 +13,9 @@ export const metadata: Metadata = { title: 'Runs' };
 
 export default async function RunsPage({ params }: Props) {
   const { owner, repo: name } = await params;
-  const repo = repoBy(owner, name);
+  const repo = await repoBy(owner, name);
   if (!repo) notFound();
-  const runs = all<{ id: number; agent: string; status: string; credits: number; mode: string; started_at: number; pull_number: number | null }>(
+  const runs = await all<{ id: number; agent: string; status: string; credits: number; mode: string; started_at: number; pull_number: number | null }>(
     'SELECT r.id, a.handle AS agent, r.status, r.credits, r.mode, r.started_at, p.number AS pull_number FROM runs r JOIN agents a ON a.id = r.agent_id LEFT JOIN pulls p ON p.id = r.pull_id WHERE r.repo_id = ? ORDER BY r.started_at DESC LIMIT 50',
     repo.id,
   );

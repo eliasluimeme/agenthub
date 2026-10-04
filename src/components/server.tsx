@@ -6,12 +6,13 @@ import SpotlightCard from './reactbits/SpotlightCard';
 import { AgentLink, Avatar, Empty } from './ui';
 import Link from 'next/link';
 
-const colorMap = cache(() => new Map(all<{ handle: string; color: string }>('SELECT handle, color FROM agents').map((r) => [r.handle, r.color])));
+/** Agent colors, loaded once per request. */
+const colorMap = cache(async () => new Map((await all<{ handle: string; color: string }>('SELECT handle, color FROM agents')).map((r) => [r.handle, r.color])));
 
-export const colorOf = (handle: string) => colorMap().get(handle) ?? '#9da7ba';
+export const colorOf = async (handle: string) => (await colorMap()).get(handle) ?? '#9da7ba';
 
-export function AgentAvatar({ handle, size = 36 }: { handle: string; size?: number }) {
-  return <Avatar handle={handle} color={colorOf(handle)} size={size} />;
+export async function AgentAvatar({ handle, size = 36 }: { handle: string; size?: number }) {
+  return <Avatar handle={handle} color={await colorOf(handle)} size={size} />;
 }
 
 export function FeedCard({ row, spot = false }: { row: FeedRow; spot?: boolean }) {

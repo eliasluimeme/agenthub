@@ -26,25 +26,25 @@ const LEVELS = ['rgba(186,214,247,0.08)', 'rgba(186,214,247,0.2)', 'rgba(186,214
 export default async function AgentPage({ params, searchParams }: Props) {
   const { handle } = await params;
   const { tab = 'overview', welcome } = await searchParams;
-  const agent = agentByHandle(handle);
+  const agent = await agentByHandle(handle);
   if (!agent) notFound();
   const user = await getUser();
   const isOwner = user?.id === agent.owner_id;
-  const stats = agentStats(agent.id);
-  const beats = heartbeats(agent.id, 24);
-  const repos = reposByOwnerAgent(agent.id);
-  const counts = heatmap(agent.id, 280);
+  const stats = await agentStats(agent.id);
+  const beats = await heartbeats(agent.id, 24);
+  const repos = await reposByOwnerAgent(agent.id);
+  const counts = await heatmap(agent.id, 280);
   const total = counts.reduce((a, b) => a + b, 0);
   const startDay = new Date(new Date().setHours(0, 0, 0, 0) - 279 * 86_400_000).getDay();
   const cells: (number | null)[] = [...new Array<null>(startDay).fill(null), ...counts];
   const flashToken = welcome && isOwner ? (await cookies()).get('ah_flash')?.value : undefined;
   const skills = parseJson<string[]>(agent.skills, []);
-  const pulls = all<{ number: number; title: string; state: string; created_at: number; owner: string; repo: string }>(
+  const pulls = await all<{ number: number; title: string; state: string; created_at: number; owner: string; repo: string }>(
     'SELECT p.number, p.title, p.state, p.created_at, ra.handle AS owner, r.name AS repo FROM pulls p JOIN repos r ON r.id = p.repo_id JOIN agents ra ON ra.id = r.owner_agent_id WHERE p.author_agent_id = ? ORDER BY p.created_at DESC LIMIT 30',
     agent.id,
   );
-  const runs = runsForAgent(agent.id, 20);
-  const allBeats = heartbeats(agent.id, 60).reverse();
+  const runs = await runsForAgent(agent.id, 20);
+  const allBeats = (await heartbeats(agent.id, 60)).reverse();
   const level = (n: number | null) => (n === null ? 'transparent' : LEVELS[n === 0 ? 0 : n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 3 : 4]);
   const tabs: [string, string, number?][] = [['overview', 'Overview'], ['repos', 'Repositories', repos.length], ['pulls', 'Pull requests', pulls.length], ['runs', 'Runs', runs.length], ['heartbeat', 'Heartbeat']];
 
@@ -121,7 +121,7 @@ export default async function AgentPage({ params, searchParams }: Props) {
               </div>
               <div>
                 <div className="cap mb10">Recent activity</div>
-                <FeedList rows={recentActivity(agent.id, 6)} empty="No activity yet." />
+                <FeedList rows={await recentActivity(agent.id, 6)} empty="No activity yet." />
               </div>
             </>
           )}
@@ -181,7 +181,7 @@ export default async function AgentPage({ params, searchParams }: Props) {
           <div className="card" style={{ padding: 18 }}>
             <div className="cap" style={{ marginBottom: 12 }}>Heartbeat</div>
             <HeartbeatStrip beats={beats} />
-            <p className="mut xs" style={{ marginTop: 12 }}>Every {agent.interval_hours} hours with up to {agent.variance}% variance. Skips when the daily cap ({spentToday(agent.id)} of {agent.daily_cap} credits used) is reached.</p>
+            <p className="mut xs" style={{ marginTop: 12 }}>Every {agent.interval_hours} hours with up to {agent.variance}% variance. Skips when the daily cap ({await spentToday(agent.id)} of {agent.daily_cap} credits used) is reached.</p>
           </div>
           <div><div className="cap mb8">Permissions</div><div className="flex g6 wrap">{TIERS.map((t, i) => <Badge key={t.name} bright={i === agent.tier}>{t.name}</Badge>)}</div><p className="mut xs" style={{ marginTop: 8 }}>{TIERS[agent.tier].desc}</p></div>
           {skills.length > 0 && <div><div className="cap mb8">Skills</div><div className="flex g6 wrap">{skills.map((s) => <Badge key={s}>{s}</Badge>)}</div></div>}
